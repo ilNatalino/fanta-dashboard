@@ -1,0 +1,16 @@
+{
+  "name": "fanta-dashboard",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "build": "tsc",
+    "dev": "npm run build && node scripts/serve.mjs",
+    "typecheck": "tsc --noEmit",
+    "test": "npm run build && node --test",
+    "test:ticket11": "npm run build && node --test tests/ticket11.test.mjs"
+  },
+  "devDependencies": {
+    "playwright": "^1.62.1",
+    "typescript": "^7.0.2"
+  }
+}
