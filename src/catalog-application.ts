@@ -28,7 +28,7 @@ export type AuctionConfiguration = {
   initialBudget: number;
   rosterSlots: Record<ClassicRole, number>;
   adaptationThreshold: number;
-  marketTolerance: number;
+  historicalMarketPerceptionTolerance: number;
 };
 
 export type Team = {
@@ -38,7 +38,6 @@ export type Team = {
 };
 
 export type ActiveAuction = {
-  started: true;
   configuration: AuctionConfiguration;
   teams: Team[];
 };
@@ -69,14 +68,14 @@ export type StartAuctionResult =
   | { status: "started" }
   | { status: "invalid"; error: string };
 
-export type UpdateAuctionSettingsInput = {
+export type UpdateAuctionConfigurationInput = {
   mainTeamName: string;
   opponentTeamNames: string[];
   adaptationThreshold: number;
-  marketTolerance: number;
+  historicalMarketPerceptionTolerance: number;
 };
 
-export type UpdateAuctionSettingsResult =
+export type UpdateAuctionConfigurationResult =
   | { status: "updated" }
   | { status: "invalid"; error: string };
 
@@ -135,13 +134,12 @@ export class CatalogApplication {
     const nextState: AppState = {
       ...this.#state,
       auction: {
-        started: true,
         configuration: {
           teamCount: input.teamCount,
           initialBudget: input.initialBudget,
           rosterSlots: { ...input.rosterSlots },
           adaptationThreshold: input.adaptationThreshold,
-          marketTolerance: input.marketTolerance,
+          historicalMarketPerceptionTolerance: input.historicalMarketPerceptionTolerance,
         },
         teams,
       },
@@ -152,12 +150,14 @@ export class CatalogApplication {
     return { status: "started" };
   }
 
-  updateAuctionSettings(input: UpdateAuctionSettingsInput): UpdateAuctionSettingsResult {
+  updateAuctionConfiguration(
+    input: UpdateAuctionConfigurationInput,
+  ): UpdateAuctionConfigurationResult {
     const auction = this.#state?.auction;
     if (!this.#state || !auction) {
       return { status: "invalid", error: "Nessuna Asta attiva da aggiornare." };
     }
-    const error = validateEditableAuctionSettings(input);
+    const error = validateEditableAuctionConfiguration(input);
     if (error) return { status: "invalid", error };
 
     const nextState: AppState = {
@@ -167,7 +167,7 @@ export class CatalogApplication {
         configuration: {
           ...auction.configuration,
           adaptationThreshold: input.adaptationThreshold,
-          marketTolerance: input.marketTolerance,
+          historicalMarketPerceptionTolerance: input.historicalMarketPerceptionTolerance,
         },
         teams: auction.teams.map((team, index) => ({
           ...team,
@@ -185,7 +185,7 @@ export class CatalogApplication {
 }
 
 function validateAuctionConfiguration(input: StartAuctionInput): string | null {
-  const editableError = validateEditableAuctionSettings(input);
+  const editableError = validateEditableAuctionConfiguration(input);
   if (editableError) return editableError;
   if (!Number.isInteger(input.teamCount) || input.teamCount < 2) {
     return "Il numero di Squadre deve essere un intero pari almeno a 2.";
@@ -199,13 +199,16 @@ function validateAuctionConfiguration(input: StartAuctionInput): string | null {
   return null;
 }
 
-function validateEditableAuctionSettings(input: UpdateAuctionSettingsInput): string | null {
+function validateEditableAuctionConfiguration(input: UpdateAuctionConfigurationInput): string | null {
   if (!input.mainTeamName.trim()) return "Il nome della Squadra principale è obbligatorio.";
   if (!Number.isInteger(input.adaptationThreshold) || input.adaptationThreshold <= 0) {
     return "La Soglia di adattamento deve essere un intero positivo.";
   }
-  if (!Number.isFinite(input.marketTolerance) || input.marketTolerance < 0) {
-    return "La tolleranza storica deve essere un numero non negativo.";
+  if (
+    !Number.isFinite(input.historicalMarketPerceptionTolerance)
+    || input.historicalMarketPerceptionTolerance < 0
+  ) {
+    return "La tolleranza della Percezione storica di mercato deve essere un numero non negativo.";
   }
   return null;
 }

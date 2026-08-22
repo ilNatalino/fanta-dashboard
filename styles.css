@@ -168,7 +168,8 @@ input:not([type="file"]) {
   padding: 3rem 0 1.5rem;
 }
 
-.catalog-heading h1 {
+.catalog-heading h1,
+.active-heading h1 {
   max-width: none;
   font-size: clamp(2.5rem, 5vw, 4.5rem);
 }
@@ -187,11 +188,6 @@ input:not([type="file"]) {
 
 .active-heading {
   padding: 3rem 0 1.5rem;
-}
-
-.active-heading h1 {
-  max-width: none;
-  font-size: clamp(2.5rem, 5vw, 4.5rem);
 }
 
 .active-heading > p:last-child {

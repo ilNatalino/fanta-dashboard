@@ -42,7 +42,7 @@ test("il Catalogo disponibile espone la configurazione rappresentativa e richied
     ["3", "8", "8", "6"],
   );
   assert.equal(await page.getByLabel("Soglia di adattamento").inputValue(), "3");
-  assert.equal(await page.getByLabel("Tolleranza storica (%)").inputValue(), "5");
+  assert.equal(await page.getByLabel("Tolleranza della Percezione storica di mercato (%)").inputValue(), "5");
   assert.deepEqual(
     await page.locator("[data-opponent-name]").evaluateAll((inputs) => inputs.map((input) => input.value)),
     ["Squadra 2", "Squadra 3", "Squadra 4", "Squadra 5", "Squadra 6", "Squadra 7", "Squadra 8"],
@@ -63,6 +63,7 @@ test("l'avvio salva l'unica Asta attiva, blocca le regole strutturali e sopravvi
   await page.getByRole("button", { name: "Avvia asta" }).click();
 
   assert.equal(await page.getByRole("heading", { name: "Asta attiva", exact: true }).isVisible(), true);
+  assert.equal(await page.getByText("Sessione in corso", { exact: true }).count(), 1);
   assert.equal(await page.getByLabel("Numero di Squadre").isDisabled(), true);
   assert.equal(await page.getByLabel("Budget iniziale comune").isDisabled(), true);
   assert.deepEqual(
@@ -86,7 +87,7 @@ test("l'avvio salva l'unica Asta attiva, blocca le regole strutturali e sopravvi
   await page.close();
 });
 
-test("numero di Squadre, budget, Posti di ruolo e parametri di calibrazione sono configurabili", async () => {
+test("numero di Squadre, budget, Posti di ruolo, Soglia di adattamento e Percezione storica di mercato sono configurabili", async () => {
   const page = await openPage();
   await importRepresentativeCatalog(page);
 
@@ -101,7 +102,7 @@ test("numero di Squadre, budget, Posti di ruolo e parametri di calibrazione sono
   await page.getByLabel("Posti CEN").fill("7");
   await page.getByLabel("Posti ATT").fill("5");
   await page.getByLabel("Soglia di adattamento").fill("4");
-  await page.getByLabel("Tolleranza storica (%)").fill("7");
+  await page.getByLabel("Tolleranza della Percezione storica di mercato (%)").fill("7");
   await page.getByLabel("Nome della Squadra principale").fill("I Lupi");
   await page.getByRole("button", { name: "Avvia asta" }).click();
 
@@ -112,13 +113,13 @@ test("numero di Squadre, budget, Posti di ruolo e parametri di calibrazione sono
     ["2", "7", "7", "5"],
   );
   assert.equal(await page.getByLabel("Soglia di adattamento").inputValue(), "4");
-  assert.equal(await page.getByLabel("Tolleranza storica (%)").inputValue(), "7");
+  assert.equal(await page.getByLabel("Tolleranza della Percezione storica di mercato (%)").inputValue(), "7");
   assert.equal(await page.locator("[data-team-name]").count(), 5);
 
   await page.close();
 });
 
-test("dopo l'avvio i nomi delle Squadre e i parametri non strutturali restano modificabili", async () => {
+test("dopo l'avvio i nomi delle Squadre, la Soglia di adattamento e la Percezione storica di mercato restano modificabili", async () => {
   const page = await openPage();
   await importRepresentativeCatalog(page);
   await page.getByLabel("Nome della Squadra principale").fill("I Falchi");
@@ -127,15 +128,15 @@ test("dopo l'avvio i nomi delle Squadre e i parametri non strutturali restano mo
   await page.getByLabel("Nome della Squadra principale").fill("Le Aquile");
   await page.getByLabel("Squadra avversaria 2").fill("I Rivali");
   await page.getByLabel("Soglia di adattamento").fill("4");
-  await page.getByLabel("Tolleranza storica (%)").fill("6");
-  await page.getByRole("button", { name: "Salva impostazioni" }).click();
+  await page.getByLabel("Tolleranza della Percezione storica di mercato (%)").fill("6");
+  await page.getByRole("button", { name: "Salva Configurazione d’asta" }).click();
 
-  assert.equal(await page.getByRole("status").innerText(), "Impostazioni salvate.");
+  assert.equal(await page.getByRole("status").innerText(), "Configurazione d’asta salvata.");
   await page.reload();
   assert.equal(await page.getByLabel("Nome della Squadra principale").inputValue(), "Le Aquile");
   assert.equal(await page.getByLabel("Squadra avversaria 2").inputValue(), "I Rivali");
   assert.equal(await page.getByLabel("Soglia di adattamento").inputValue(), "4");
-  assert.equal(await page.getByLabel("Tolleranza storica (%)").inputValue(), "6");
+  assert.equal(await page.getByLabel("Tolleranza della Percezione storica di mercato (%)").inputValue(), "6");
 
   await page.close();
 });

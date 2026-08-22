@@ -105,7 +105,10 @@ function render(
         A: readNumber(setupForm, "slotsA"),
       },
       adaptationThreshold: readNumber(setupForm, "adaptationThreshold"),
-      marketTolerance: readNumber(setupForm, "marketTolerance"),
+      historicalMarketPerceptionTolerance: readNumber(
+        setupForm,
+        "historicalMarketPerceptionTolerance",
+      ),
       mainTeamName: readText(setupForm, "mainTeamName"),
       opponentTeamNames: Array.from(setupForm.querySelectorAll<HTMLInputElement>("[data-opponent-name]"))
         .map((input) => input.value),
@@ -125,24 +128,27 @@ function render(
       opponentFields.innerHTML = renderOpponentFields(teamCountInput.valueAsNumber, currentNames);
     });
   }
-  const settingsForm = root.querySelector<HTMLFormElement>("#auction-settings");
-  settingsForm?.addEventListener("submit", (event) => {
+  const configurationForm = root.querySelector<HTMLFormElement>("#auction-configuration");
+  configurationForm?.addEventListener("submit", (event) => {
     event.preventDefault();
     const teamNames = Array.from(
-      settingsForm.querySelectorAll<HTMLInputElement>("[data-team-name]"),
+      configurationForm.querySelectorAll<HTMLInputElement>("[data-team-name]"),
       (input) => input.value,
     );
-    const result = application.updateAuctionSettings({
+    const result = application.updateAuctionConfiguration({
       mainTeamName: teamNames[0] ?? "",
       opponentTeamNames: teamNames.slice(1),
-      adaptationThreshold: readNumber(settingsForm, "adaptationThreshold"),
-      marketTolerance: readNumber(settingsForm, "marketTolerance"),
+      adaptationThreshold: readNumber(configurationForm, "adaptationThreshold"),
+      historicalMarketPerceptionTolerance: readNumber(
+        configurationForm,
+        "historicalMarketPerceptionTolerance",
+      ),
     });
     render(
       root,
       application,
       [],
-      result.status === "updated" ? "Impostazioni salvate." : "",
+      result.status === "updated" ? "Configurazione d’asta salvata." : "",
       result.status === "invalid" ? result.error : "",
     );
   });
@@ -203,7 +209,7 @@ function renderCatalog(state: Readonly<AppState>, errors: ImportError[], notice:
           <label>Posti CEN<input name="slotsC" type="number" min="1" value="8" required /></label>
           <label>Posti ATT<input name="slotsA" type="number" min="1" value="6" required /></label>
           <label>Soglia di adattamento<input name="adaptationThreshold" type="number" min="1" value="3" required /></label>
-          <label>Tolleranza storica (%)<input name="marketTolerance" type="number" min="0" value="5" required /></label>
+          <label>Tolleranza della Percezione storica di mercato (%)<input name="historicalMarketPerceptionTolerance" type="number" min="0" value="5" required /></label>
           <label>Nome della Squadra principale<input name="mainTeamName" required /></label>
           <div class="opponent-fields" data-opponent-fields>${renderOpponentFields(8)}</div>
         </div>
@@ -241,15 +247,15 @@ function renderActiveAuction(
     <div class="shell shell-wide">
       ${renderHeader(false, true)}
       <section class="active-heading">
-        <p class="eyebrow">Sessione ripristinata</p>
+        <p class="eyebrow">Sessione in corso</p>
         <h1>Asta attiva</h1>
         <p>Le regole strutturali sono bloccate. I nomi delle Squadre restano modificabili.</p>
       </section>
-      <form class="card auction-setup" id="auction-settings">
+      <form class="card auction-setup" id="auction-configuration">
         <div>
           <h2>Configurazione d’asta</h2>
           <p>Un’unica sessione locale, senza storico di aste.</p>
-          <button type="submit">Salva impostazioni</button>
+          <button type="submit">Salva Configurazione d’asta</button>
           ${notice ? `<p class="notice" role="status">${escapeHtml(notice)}</p>` : ""}
           ${operationError ? `<p class="errors" role="alert">${escapeHtml(operationError)}</p>` : ""}
         </div>
@@ -261,7 +267,7 @@ function renderActiveAuction(
           <label>Posti CEN<input type="number" value="${configuration.rosterSlots.C}" disabled /></label>
           <label>Posti ATT<input type="number" value="${configuration.rosterSlots.A}" disabled /></label>
           <label>Soglia di adattamento<input name="adaptationThreshold" type="number" min="1" value="${configuration.adaptationThreshold}" required /></label>
-          <label>Tolleranza storica (%)<input name="marketTolerance" type="number" min="0" value="${configuration.marketTolerance}" required /></label>
+          <label>Tolleranza della Percezione storica di mercato (%)<input name="historicalMarketPerceptionTolerance" type="number" min="0" value="${configuration.historicalMarketPerceptionTolerance}" required /></label>
           ${auction.teams.map((team, index) => `
             <label>${team.isMain ? "Nome della Squadra principale" : `Squadra avversaria ${index + 1}`}
               <input data-team-name name="${team.id}" value="${escapeHtml(team.name)}" ${team.isMain ? "required" : ""} />
