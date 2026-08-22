@@ -87,7 +87,7 @@ test("l'avvio salva l'unica Asta attiva, blocca le regole strutturali e sopravvi
   await page.close();
 });
 
-test("numero di Squadre, budget, Posti di ruolo, Soglia di adattamento e Percezione storica di mercato sono configurabili", async () => {
+test("numero di Squadre, budget, Posti di ruolo, Soglia di adattamento e tolleranza della Percezione storica di mercato sono configurabili", async () => {
   const page = await openPage();
   await importRepresentativeCatalog(page);
 
@@ -119,7 +119,7 @@ test("numero di Squadre, budget, Posti di ruolo, Soglia di adattamento e Percezi
   await page.close();
 });
 
-test("dopo l'avvio i nomi delle Squadre, la Soglia di adattamento e la Percezione storica di mercato restano modificabili", async () => {
+test("dopo l'avvio i nomi delle Squadre, la Soglia di adattamento e la tolleranza della Percezione storica di mercato restano modificabili", async () => {
   const page = await openPage();
   await importRepresentativeCatalog(page);
   await page.getByLabel("Nome della Squadra principale").fill("I Falchi");
