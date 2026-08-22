@@ -1,0 +1,18 @@
+passo,azione,name,ruolo,squadra,prezzo_finale,caso,osservazioni_ruolo_attese,prezzo_adattato_atteso
+1,acquisto,GIOCATORE_P_01,P,Squadra principale,100,mercato in linea,1,Dati insufficienti
+2,acquisto,GIOCATORE_D_01,D,Squadra 2,157,sovrapprezzo moderato,1,Dati insufficienti
+3,acquisto,GIOCATORE_C_01,C,Squadra 3,147,sottoprezzo,1,Dati insufficienti
+4,acquisto,GIOCATORE_A_01,A,Squadra 4,466,sovrapprezzo,1,Dati insufficienti
+5,acquisto,GIOCATORE_P_02,P,Squadra 5,40,mercato in linea,2,Dati insufficienti
+6,acquisto,GIOCATORE_D_02,D,Squadra 6,55,sovrapprezzo moderato,2,Dati insufficienti
+7,acquisto,GIOCATORE_C_02,C,Squadra 7,67,sottoprezzo,2,Dati insufficienti
+8,acquisto,GIOCATORE_A_02,A,Squadra 8,182,sovrapprezzo,2,Dati insufficienti
+9,acquisto,GIOCATORE_P_03,P,Squadra principale,1,raggiunge la soglia,3,Disponibile
+10,acquisto,GIOCATORE_D_03,D,Squadra 2,76,valore anomalo,3,Disponibile
+11,acquisto,GIOCATORE_C_03,C,Squadra 3,48,raggiunge la soglia,3,Disponibile
+12,acquisto,GIOCATORE_A_03,A,Squadra 4,96,raggiunge la soglia,3,Disponibile
+13,acquisto,GIOCATORE_D_04,D,Squadra 5,22,quarta osservazione,4,Disponibile
+14,acquisto,GIOCATORE_A_04,A,Squadra 6,52,quarta osservazione,4,Disponibile
+15,correzione,GIOCATORE_D_03,D,Squadra 2,35,correzione del valore anomalo,4,Disponibile
+16,annullamento,GIOCATORE_C_03,C,Squadra 3,,ritorno sotto soglia,2,Dati insufficienti
+17,acquisto,GIOCATORE_C_04,C,Squadra 7,23,ritorno alla soglia,3,Disponibile

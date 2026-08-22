@@ -1,0 +1,2 @@
+numero_squadre,budget_iniziale,posti_por,posti_dif,posti_cen,posti_att,soglia_adattamento,tolleranza_percezione_storica
+8,1000,3,8,8,6,3,0.05
