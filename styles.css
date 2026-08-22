@@ -146,6 +146,15 @@ input[type="file"] {
   background: #111a15;
 }
 
+input:not([type="file"]) {
+  width: 100%;
+  border: 1px solid #56675c;
+  border-radius: 0.6rem;
+  padding: 0.7rem 0.75rem;
+  color: #f5f4ef;
+  background: #111a15;
+}
+
 .import-button {
   width: 100%;
   margin-top: 1rem;
@@ -167,6 +176,48 @@ input[type="file"] {
 .catalog-count {
   margin: 0.8rem 0 0;
   color: #aebbb2;
+}
+
+.auction-setup {
+  display: grid;
+  grid-template-columns: minmax(14rem, 0.55fr) minmax(0, 1.45fr);
+  gap: 2rem;
+  margin-bottom: 1.5rem;
+}
+
+.active-heading {
+  padding: 3rem 0 1.5rem;
+}
+
+.active-heading h1 {
+  max-width: none;
+  font-size: clamp(2.5rem, 5vw, 4.5rem);
+}
+
+.active-heading > p:last-child {
+  color: #aebbb2;
+}
+
+.auction-setup h2 {
+  font-size: 1.5rem;
+}
+
+.setup-fields {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(8rem, 1fr));
+  gap: 1rem;
+}
+
+.opponent-fields {
+  display: contents;
+}
+
+.setup-fields label {
+  display: grid;
+  gap: 0.4rem;
+  color: #dbe3dc;
+  font-size: 0.78rem;
+  font-weight: 700;
 }
 
 .replace-panel {
@@ -298,6 +349,11 @@ tbody tr:hover {
   .catalog-heading {
     display: grid;
     align-items: start;
+  }
+
+  .auction-setup,
+  .setup-fields {
+    grid-template-columns: 1fr;
   }
 
   .replace-panel summary {

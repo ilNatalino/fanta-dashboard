@@ -23,9 +23,30 @@ export type Player = {
   expectedTitolarita: number;
 };
 
+export type AuctionConfiguration = {
+  teamCount: number;
+  initialBudget: number;
+  rosterSlots: Record<ClassicRole, number>;
+  adaptationThreshold: number;
+  marketTolerance: number;
+};
+
+export type Team = {
+  id: string;
+  name: string;
+  isMain: boolean;
+};
+
+export type ActiveAuction = {
+  started: true;
+  configuration: AuctionConfiguration;
+  teams: Team[];
+};
+
 export type AppState = {
   version: 1;
   catalog: Player[];
+  auction?: ActiveAuction;
 };
 
 export type ImportError = {
@@ -38,6 +59,26 @@ export type ImportResult =
   | { status: "imported" }
   | { status: "checked" }
   | { status: "invalid"; errors: ImportError[] };
+
+export type StartAuctionInput = AuctionConfiguration & {
+  mainTeamName: string;
+  opponentTeamNames: string[];
+};
+
+export type StartAuctionResult =
+  | { status: "started" }
+  | { status: "invalid"; error: string };
+
+export type UpdateAuctionSettingsInput = {
+  mainTeamName: string;
+  opponentTeamNames: string[];
+  adaptationThreshold: number;
+  marketTolerance: number;
+};
+
+export type UpdateAuctionSettingsResult =
+  | { status: "updated" }
+  | { status: "invalid"; error: string };
 
 export interface StateStorage {
   load(): AppState | null;
@@ -71,6 +112,102 @@ export class CatalogApplication {
     this.#state = nextState;
     return { status: "imported" };
   }
+
+  startAuction(input: StartAuctionInput): StartAuctionResult {
+    if (!this.#state) {
+      return { status: "invalid", error: "Importa il Catalogo calciatori prima di avviare l’asta." };
+    }
+    if (this.#state.auction) {
+      return { status: "invalid", error: "Esiste già un’Asta attiva." };
+    }
+
+    const error = validateAuctionConfiguration(input);
+    if (error) return { status: "invalid", error };
+
+    const teams: Team[] = [
+      { id: "main", name: input.mainTeamName.trim(), isMain: true },
+      ...Array.from({ length: input.teamCount - 1 }, (_, index) => ({
+        id: `opponent-${index + 2}`,
+        name: input.opponentTeamNames[index]?.trim() || `Squadra ${index + 2}`,
+        isMain: false,
+      })),
+    ];
+    const nextState: AppState = {
+      ...this.#state,
+      auction: {
+        started: true,
+        configuration: {
+          teamCount: input.teamCount,
+          initialBudget: input.initialBudget,
+          rosterSlots: { ...input.rosterSlots },
+          adaptationThreshold: input.adaptationThreshold,
+          marketTolerance: input.marketTolerance,
+        },
+        teams,
+      },
+    };
+
+    this.storage.save(nextState);
+    this.#state = nextState;
+    return { status: "started" };
+  }
+
+  updateAuctionSettings(input: UpdateAuctionSettingsInput): UpdateAuctionSettingsResult {
+    const auction = this.#state?.auction;
+    if (!this.#state || !auction) {
+      return { status: "invalid", error: "Nessuna Asta attiva da aggiornare." };
+    }
+    const error = validateEditableAuctionSettings(input);
+    if (error) return { status: "invalid", error };
+
+    const nextState: AppState = {
+      ...this.#state,
+      auction: {
+        ...auction,
+        configuration: {
+          ...auction.configuration,
+          adaptationThreshold: input.adaptationThreshold,
+          marketTolerance: input.marketTolerance,
+        },
+        teams: auction.teams.map((team, index) => ({
+          ...team,
+          name: team.isMain
+            ? input.mainTeamName.trim()
+            : input.opponentTeamNames[index - 1]?.trim() || `Squadra ${index + 1}`,
+        })),
+      },
+    };
+
+    this.storage.save(nextState);
+    this.#state = nextState;
+    return { status: "updated" };
+  }
+}
+
+function validateAuctionConfiguration(input: StartAuctionInput): string | null {
+  const editableError = validateEditableAuctionSettings(input);
+  if (editableError) return editableError;
+  if (!Number.isInteger(input.teamCount) || input.teamCount < 2) {
+    return "Il numero di Squadre deve essere un intero pari almeno a 2.";
+  }
+  if (!Number.isInteger(input.initialBudget) || input.initialBudget <= 0) {
+    return "Il budget iniziale deve essere un intero positivo.";
+  }
+  if (Object.values(input.rosterSlots).some((slots) => !Number.isInteger(slots) || slots <= 0)) {
+    return "I Posti di ruolo devono essere interi positivi.";
+  }
+  return null;
+}
+
+function validateEditableAuctionSettings(input: UpdateAuctionSettingsInput): string | null {
+  if (!input.mainTeamName.trim()) return "Il nome della Squadra principale è obbligatorio.";
+  if (!Number.isInteger(input.adaptationThreshold) || input.adaptationThreshold <= 0) {
+    return "La Soglia di adattamento deve essere un intero positivo.";
+  }
+  if (!Number.isFinite(input.marketTolerance) || input.marketTolerance < 0) {
+    return "La tolleranza storica deve essere un numero non negativo.";
+  }
+  return null;
 }
 
 type CsvRow = { line: number; values: string[] };
