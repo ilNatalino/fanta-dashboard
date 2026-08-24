@@ -174,6 +174,11 @@ input:not([type="file"]) {
   font-size: clamp(2.5rem, 5vw, 4.5rem);
 }
 
+.active-catalog-heading h2 {
+  margin: 0;
+  font-size: 2rem;
+}
+
 .catalog-count {
   margin: 0.8rem 0 0;
   color: #aebbb2;
@@ -184,6 +189,104 @@ input:not([type="file"]) {
   grid-template-columns: minmax(14rem, 0.55fr) minmax(0, 1.45fr);
   gap: 2rem;
   margin-bottom: 1.5rem;
+}
+
+.shortlist-manager {
+  display: grid;
+  grid-template-columns: minmax(14rem, 0.55fr) minmax(0, 1.45fr);
+  gap: 2rem;
+  margin-bottom: 1.5rem;
+}
+
+.create-category {
+  display: grid;
+  grid-template-columns: minmax(12rem, 1fr) auto;
+  gap: 0.75rem;
+  align-items: end;
+}
+
+.create-category label {
+  display: grid;
+  gap: 0.4rem;
+  color: #dbe3dc;
+  font-size: 0.78rem;
+  font-weight: 700;
+}
+
+.category-list {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(10rem, 1fr));
+  gap: 0.75rem;
+  margin-top: 1rem;
+}
+
+.category-card {
+  border: 1px solid #334139;
+  border-radius: 0.75rem;
+  padding: 0.85rem;
+  background: #111a15;
+}
+
+.category-card h3,
+.category-card p {
+  margin: 0;
+}
+
+.category-card p {
+  margin-top: 0.35rem;
+  font-size: 0.8rem;
+}
+
+.category-card form,
+.category-card label {
+  display: grid;
+  gap: 0.4rem;
+}
+
+.category-card form {
+  margin-top: 0.75rem;
+}
+
+.category-card label {
+  color: #dbe3dc;
+  font-size: 0.72rem;
+  font-weight: 700;
+}
+
+.category-card button {
+  min-height: 2.25rem;
+  padding: 0.45rem 0.65rem;
+  font-size: 0.75rem;
+}
+
+.delete-category {
+  width: 100%;
+  margin-top: 0.5rem;
+  color: #ffb3aa;
+  background: #2c1917;
+}
+
+.player-shortlist {
+  display: grid;
+  gap: 0.35rem;
+}
+
+.player-shortlist label {
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
+  color: #c3cec6;
+  font-size: 0.78rem;
+}
+
+.player-shortlist input {
+  width: auto;
+}
+
+.shortlist-status {
+  color: #bff36b;
+  font-size: 0.72rem;
+  font-weight: 800;
 }
 
 .active-heading {
@@ -348,6 +451,8 @@ tbody tr:hover {
   }
 
   .auction-setup,
+  .shortlist-manager,
+  .create-category,
   .setup-fields {
     grid-template-columns: 1fr;
   }

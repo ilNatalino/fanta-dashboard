@@ -10,6 +10,7 @@ import { BrowserStateStorage } from "./browser-storage.js";
 
 const roleNames: Record<ClassicRole, string> = { P: "POR", D: "DIF", C: "CEN", A: "ATT" };
 const numberFormatter = new Intl.NumberFormat("it-IT", { maximumFractionDigits: 2 });
+type OperationTarget = "import" | "configuration" | "shortlist";
 
 const catalogColumns: Array<{
   label: string;
@@ -69,12 +70,13 @@ function render(
   errors: ImportError[] = [],
   notice = "",
   operationError = "",
+  operationTarget: OperationTarget = "import",
 ): void {
   const state = application.observe();
   root.innerHTML = state
     ? state.auction
-      ? renderActiveAuction(state.auction, notice, operationError)
-      : renderCatalog(state, errors, notice)
+      ? renderActiveAuction(state, state.auction, notice, operationError, operationTarget)
+      : renderCatalog(state, errors, notice, operationError, operationTarget)
     : renderEmpty(errors);
 
   const form = root.querySelector<HTMLFormElement>("[data-import-form]");
@@ -150,7 +152,81 @@ function render(
       [],
       result.status === "updated" ? "Configurazione d’asta salvata." : "",
       result.status === "invalid" ? result.error : "",
+      "configuration",
     );
+  });
+
+  const categoryForm = root.querySelector<HTMLFormElement>("[data-create-category]");
+  categoryForm?.addEventListener("submit", (event) => {
+    event.preventDefault();
+    const result = application.createShortlistCategory(readText(categoryForm, "categoryName"));
+    render(
+      root,
+      application,
+      [],
+      result.status === "updated" ? "Categoria creata." : "",
+      result.status === "invalid" ? result.error : "",
+      "shortlist",
+    );
+  });
+
+  root.querySelectorAll<HTMLInputElement>("[data-shortlist-association]").forEach((input) => {
+    input.addEventListener("change", () => {
+      const result = application.setShortlistAssociation(
+        input.dataset.playerName ?? "",
+        input.dataset.categoryName ?? "",
+        input.checked,
+      );
+      render(
+        root,
+        application,
+        [],
+        "",
+        result.status === "invalid" ? result.error : "",
+        "shortlist",
+      );
+    });
+  });
+
+  root.querySelectorAll<HTMLFormElement>("[data-rename-category]").forEach((form) => {
+    form.addEventListener("submit", (event) => {
+      event.preventDefault();
+      const result = application.renameShortlistCategory(
+        form.dataset.categoryName ?? "",
+        readText(form, "categoryName"),
+      );
+      render(
+        root,
+        application,
+        [],
+        result.status === "updated" ? "Categoria rinominata." : "",
+        result.status === "invalid" ? result.error : "",
+        "shortlist",
+      );
+    });
+  });
+
+  root.querySelectorAll<HTMLButtonElement>("[data-delete-category]").forEach((button) => {
+    button.addEventListener("click", () => {
+      const categoryName = button.dataset.categoryName ?? "";
+      let result = application.deleteShortlistCategory(categoryName);
+      if (result.status === "confirmation-required") {
+        const noun = result.associatedPlayers === 1 ? "calciatore" : "calciatori";
+        const confirmed = window.confirm(
+          `La categoria contiene ${result.associatedPlayers} ${noun}. Eliminarla e rimuovere le associazioni?`,
+        );
+        if (!confirmed) return;
+        result = application.deleteShortlistCategory(categoryName, true);
+      }
+      render(
+        root,
+        application,
+        [],
+        result.status === "updated" ? "Categoria eliminata." : "",
+        result.status === "invalid" ? result.error : "",
+        "shortlist",
+      );
+    });
   });
 }
 
@@ -180,7 +256,13 @@ function renderEmpty(errors: ImportError[]): string {
   `;
 }
 
-function renderCatalog(state: Readonly<AppState>, errors: ImportError[], notice: string): string {
+function renderCatalog(
+  state: Readonly<AppState>,
+  errors: ImportError[],
+  notice: string,
+  operationError: string,
+  operationTarget: OperationTarget,
+): string {
   return `
     <div class="shell shell-wide">
       ${renderHeader(true)}
@@ -190,9 +272,9 @@ function renderCatalog(state: Readonly<AppState>, errors: ImportError[], notice:
           <h1>Catalogo calciatori</h1>
           <p class="catalog-count">${state.catalog.length} calciatori disponibili</p>
         </div>
-        <details class="replace-panel" ${errors.length > 0 || notice ? "open" : ""}>
+        <details class="replace-panel" ${errors.length > 0 || operationTarget === "import" && notice ? "open" : ""}>
           <summary>Controlla un altro CSV</summary>
-          ${renderImportForm(errors, true, notice)}
+          ${renderImportForm(errors, true, operationTarget === "import" ? notice : "")}
         </details>
       </section>
       <form class="card auction-setup" id="auction-setup">
@@ -214,18 +296,103 @@ function renderCatalog(state: Readonly<AppState>, errors: ImportError[], notice:
           <div class="opponent-fields" data-opponent-fields>${renderOpponentFields(8)}</div>
         </div>
       </form>
-      <div class="table-frame">
-        <table>
-          <thead><tr>${catalogColumns.map((column) => `<th>${column.label}</th>`).join("")}</tr></thead>
-          <tbody>${state.catalog.map((player) => `
-            <tr>${catalogColumns.map((column) => column.rowHeader
-              ? `<th scope="row">${column.render(player)}</th>`
-              : `<td>${column.render(player)}</td>`
-            ).join("")}</tr>
-          `).join("")}</tbody>
-        </table>
-      </div>
+      ${renderShortlistManager(
+        state,
+        operationTarget === "shortlist" ? notice : "",
+        operationTarget === "shortlist" ? operationError : "",
+      )}
+      ${renderCatalogTable(state)}
     </div>
+  `;
+}
+
+function renderCatalogTable(state: Readonly<AppState>): string {
+  return `
+    <div class="table-frame">
+      <table>
+        <thead><tr>${catalogColumns.map((column) => `<th>${column.label}</th>`).join("")}<th>Shortlist</th></tr></thead>
+        <tbody>${state.catalog.map((player) => `
+          <tr>${catalogColumns.map((column) => column.rowHeader
+            ? `<th scope="row">${column.render(player)}</th>`
+            : `<td>${column.render(player)}</td>`
+          ).join("")}<td>${renderPlayerShortlist(player, state)}</td></tr>
+        `).join("")}</tbody>
+      </table>
+    </div>
+  `;
+}
+
+function renderPlayerShortlist(player: Player, state: Readonly<AppState>): string {
+  const memberships = state.shortlistCategories.filter(
+    (category) => category.playerNames.includes(player.name),
+  );
+  if (state.shortlistCategories.length === 0) return "Crea una categoria";
+
+  return `
+    <div class="player-shortlist">
+      ${memberships.length > 0 ? '<span class="shortlist-status">In Shortlist</span>' : ""}
+      ${state.shortlistCategories.map((category) => `
+        <label>
+          <input
+            type="checkbox"
+            data-shortlist-association
+            data-player-name="${escapeHtml(player.name)}"
+            data-category-name="${escapeHtml(category.name)}"
+            aria-label="${escapeHtml(player.name)} · ${escapeHtml(category.name)}"
+            ${category.playerNames.includes(player.name) ? "checked" : ""}
+          />
+          ${escapeHtml(category.name)}
+        </label>
+      `).join("")}
+    </div>
+  `;
+}
+
+function renderShortlistManager(
+  state: Readonly<AppState>,
+  notice: string,
+  operationError: string,
+): string {
+  return `
+    <section class="card shortlist-manager" aria-labelledby="shortlist-title">
+      <div>
+        <p class="eyebrow">Organizzazione personale</p>
+        <h2 id="shortlist-title">Shortlist</h2>
+        <p>Crea categorie sovrapponibili e associale ai calciatori dal Catalogo.</p>
+        ${notice ? `<p class="notice" role="status">${escapeHtml(notice)}</p>` : ""}
+        ${operationError ? `<p class="errors" role="alert">${escapeHtml(operationError)}</p>` : ""}
+      </div>
+      <div>
+        <form class="create-category" data-create-category>
+          <label>Nuova categoria<input name="categoryName" required /></label>
+          <button type="submit">Crea categoria</button>
+        </form>
+        <div class="category-list">
+          ${state.shortlistCategories.length > 0
+            ? state.shortlistCategories.map((category) => `
+              <article class="category-card">
+                <h3>${escapeHtml(category.name)}</h3>
+                <p>${category.playerNames.length} ${category.playerNames.length === 1 ? "calciatore" : "calciatori"}</p>
+                <form data-rename-category data-category-name="${escapeHtml(category.name)}">
+                  <label>
+                    Rinomina categoria ${escapeHtml(category.name)}
+                    <input name="categoryName" value="${escapeHtml(category.name)}" required />
+                  </label>
+                  <button type="submit" aria-label="Salva nome ${escapeHtml(category.name)}">Salva nome</button>
+                </form>
+                <button
+                  type="button"
+                  class="delete-category"
+                  data-delete-category
+                  data-category-name="${escapeHtml(category.name)}"
+                  aria-label="Elimina categoria ${escapeHtml(category.name)}"
+                >Elimina</button>
+              </article>
+            `).join("")
+            : "<p>Nessuna categoria creata.</p>"}
+        </div>
+      </div>
+    </section>
   `;
 }
 
@@ -238,9 +405,11 @@ function renderOpponentFields(teamCount: number, names: string[] = []): string {
 }
 
 function renderActiveAuction(
+  state: Readonly<AppState>,
   auction: Readonly<ActiveAuction>,
   notice: string,
   operationError: string,
+  operationTarget: OperationTarget,
 ): string {
   const configuration = auction.configuration;
   return `
@@ -256,8 +425,8 @@ function renderActiveAuction(
           <h2>Configurazione d’asta</h2>
           <p>Un’unica sessione locale, senza storico di aste.</p>
           <button type="submit">Salva Configurazione d’asta</button>
-          ${notice ? `<p class="notice" role="status">${escapeHtml(notice)}</p>` : ""}
-          ${operationError ? `<p class="errors" role="alert">${escapeHtml(operationError)}</p>` : ""}
+          ${operationTarget === "configuration" && notice ? `<p class="notice" role="status">${escapeHtml(notice)}</p>` : ""}
+          ${operationTarget === "configuration" && operationError ? `<p class="errors" role="alert">${escapeHtml(operationError)}</p>` : ""}
         </div>
         <div class="setup-fields">
           <label>Numero di Squadre<input type="number" value="${configuration.teamCount}" disabled /></label>
@@ -275,6 +444,19 @@ function renderActiveAuction(
           `).join("")}
         </div>
       </form>
+      <section class="catalog-heading active-catalog-heading">
+        <div>
+          <p class="eyebrow">Preparazione personale</p>
+          <h2>Catalogo calciatori</h2>
+          <p class="catalog-count">${state.catalog.length} calciatori disponibili</p>
+        </div>
+      </section>
+      ${renderShortlistManager(
+        state,
+        operationTarget === "shortlist" ? notice : "",
+        operationTarget === "shortlist" ? operationError : "",
+      )}
+      ${renderCatalogTable(state)}
     </div>
   `;
 }

@@ -42,9 +42,15 @@ export type ActiveAuction = {
   teams: Team[];
 };
 
+export type ShortlistCategory = {
+  name: string;
+  playerNames: string[];
+};
+
 export type AppState = {
   version: 1;
   catalog: Player[];
+  shortlistCategories: ShortlistCategory[];
   auction?: ActiveAuction;
 };
 
@@ -79,6 +85,11 @@ export type UpdateAuctionConfigurationResult =
   | { status: "updated" }
   | { status: "invalid"; error: string };
 
+export type ShortlistResult =
+  | { status: "updated" }
+  | { status: "confirmation-required"; associatedPlayers: number }
+  | { status: "invalid"; error: string };
+
 export interface StateStorage {
   load(): AppState | null;
   save(state: AppState): void;
@@ -88,7 +99,10 @@ export class CatalogApplication {
   #state: AppState | null;
 
   constructor(private readonly storage: StateStorage) {
-    this.#state = storage.load();
+    const saved = storage.load();
+    this.#state = saved
+      ? { ...saved, shortlistCategories: saved.shortlistCategories ?? [] }
+      : null;
   }
 
   observe(): Readonly<AppState> | null {
@@ -106,7 +120,11 @@ export class CatalogApplication {
       return { status: "checked" };
     }
 
-    const nextState: AppState = { version: 1, catalog: parsed.players };
+    const nextState: AppState = {
+      version: 1,
+      catalog: parsed.players,
+      shortlistCategories: [],
+    };
     this.storage.save(nextState);
     this.#state = nextState;
     return { status: "imported" };
@@ -178,6 +196,135 @@ export class CatalogApplication {
       },
     };
 
+    this.storage.save(nextState);
+    this.#state = nextState;
+    return { status: "updated" };
+  }
+
+  createShortlistCategory(name: string): ShortlistResult {
+    if (!this.#state) {
+      return { status: "invalid", error: "Importa il Catalogo calciatori prima di creare una categoria." };
+    }
+
+    const categoryName = name.trim();
+    if (!categoryName) {
+      return { status: "invalid", error: "Il nome della categoria è obbligatorio." };
+    }
+    if (this.#state.shortlistCategories.some(
+      (category) => normalizeName(category.name) === normalizeName(categoryName),
+    )) {
+      return { status: "invalid", error: "Esiste già una categoria con questo nome." };
+    }
+
+    const nextState: AppState = {
+      ...this.#state,
+      shortlistCategories: [
+        ...this.#state.shortlistCategories,
+        { name: categoryName, playerNames: [] },
+      ],
+    };
+    this.storage.save(nextState);
+    this.#state = nextState;
+    return { status: "updated" };
+  }
+
+  setShortlistAssociation(
+    playerName: string,
+    categoryName: string,
+    selected: boolean,
+  ): ShortlistResult {
+    if (!this.#state) {
+      return { status: "invalid", error: "Catalogo calciatori non disponibile." };
+    }
+
+    const player = this.#state.catalog.find(
+      (candidate) => normalizeName(candidate.name) === normalizeName(playerName),
+    );
+    const category = this.#state.shortlistCategories.find(
+      (candidate) => normalizeName(candidate.name) === normalizeName(categoryName),
+    );
+    if (!player || !category) {
+      return { status: "invalid", error: "Calciatore o categoria non disponibile." };
+    }
+
+    const isSelected = category.playerNames.some(
+      (name) => normalizeName(name) === normalizeName(player.name),
+    );
+    if (isSelected === selected) return { status: "updated" };
+
+    const nextState: AppState = {
+      ...this.#state,
+      shortlistCategories: this.#state.shortlistCategories.map((candidate) =>
+        candidate === category
+          ? {
+              ...candidate,
+              playerNames: selected
+                ? [...candidate.playerNames, player.name]
+                : candidate.playerNames.filter(
+                    (name) => normalizeName(name) !== normalizeName(player.name),
+                  ),
+            }
+          : candidate,
+      ),
+    };
+    this.storage.save(nextState);
+    this.#state = nextState;
+    return { status: "updated" };
+  }
+
+  renameShortlistCategory(currentName: string, nextName: string): ShortlistResult {
+    if (!this.#state) {
+      return { status: "invalid", error: "Catalogo calciatori non disponibile." };
+    }
+
+    const category = this.#state.shortlistCategories.find(
+      (candidate) => normalizeName(candidate.name) === normalizeName(currentName),
+    );
+    const categoryName = nextName.trim();
+    if (!category) return { status: "invalid", error: "Categoria non disponibile." };
+    if (!categoryName) {
+      return { status: "invalid", error: "Il nome della categoria è obbligatorio." };
+    }
+    if (this.#state.shortlistCategories.some(
+      (candidate) => candidate !== category
+        && normalizeName(candidate.name) === normalizeName(categoryName),
+    )) {
+      return { status: "invalid", error: "Esiste già una categoria con questo nome." };
+    }
+
+    const nextState: AppState = {
+      ...this.#state,
+      shortlistCategories: this.#state.shortlistCategories.map((candidate) =>
+        candidate === category ? { ...candidate, name: categoryName } : candidate,
+      ),
+    };
+    this.storage.save(nextState);
+    this.#state = nextState;
+    return { status: "updated" };
+  }
+
+  deleteShortlistCategory(name: string, confirmed = false): ShortlistResult {
+    if (!this.#state) {
+      return { status: "invalid", error: "Catalogo calciatori non disponibile." };
+    }
+
+    const category = this.#state.shortlistCategories.find(
+      (candidate) => normalizeName(candidate.name) === normalizeName(name),
+    );
+    if (!category) return { status: "invalid", error: "Categoria non disponibile." };
+    if (category.playerNames.length > 0 && !confirmed) {
+      return {
+        status: "confirmation-required",
+        associatedPlayers: category.playerNames.length,
+      };
+    }
+
+    const nextState: AppState = {
+      ...this.#state,
+      shortlistCategories: this.#state.shortlistCategories.filter(
+        (candidate) => candidate !== category,
+      ),
+    };
     this.storage.save(nextState);
     this.#state = nextState;
     return { status: "updated" };
