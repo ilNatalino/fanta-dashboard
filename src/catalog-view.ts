@@ -18,7 +18,7 @@ const numberFormatter = new Intl.NumberFormat("it-IT", {
   maximumFractionDigits: 2,
   useGrouping: true,
 });
-type OperationTarget = "import" | "configuration" | "shortlist" | "purchase" | "backup";
+type OperationTarget = "import" | "configuration" | "shortlist" | "purchase" | "backup" | "persistence";
 type RankingSort = "pfc" | "slot" | "pma" | "expectedFantamedia" | "expectedTitolarita";
 type ActiveView = "auction" | "my-team" | "teams";
 type CorrectionDraft = { playerName: string; teamId: string; price: string };
@@ -74,13 +74,22 @@ function escapeHtml(value: string): string {
     .replaceAll("'", "&#039;");
 }
 
+function resultError(result: object): string {
+  return "error" in result && typeof result.error === "string" ? result.error : "";
+}
+
 function resetAssignmentDraft(viewState: AuctionViewState): void {
   viewState.assignmentOpen = false;
   viewState.assignmentTeamId = "";
   viewState.assignmentPrice = "";
 }
 
-function renderImportForm(errors: ImportError[], compact = false, notice = ""): string {
+function renderImportForm(
+  errors: ImportError[],
+  compact = false,
+  notice = "",
+  operationError = "",
+): string {
   return `
     <form class="card import-card" data-import-form>
       <h2>${compact ? "Catalogo aggiornato" : "File del provider"}</h2>
@@ -91,6 +100,7 @@ function renderImportForm(errors: ImportError[], compact = false, notice = ""): 
       </label>
       <button class="import-button" type="submit">${compact ? "Conferma sostituzione" : "Importa catalogo"}</button>
       ${notice ? `<p class="notice" role="status">${escapeHtml(notice)}</p>` : ""}
+      ${operationError ? `<p class="errors" role="alert">${escapeHtml(operationError)}</p>` : ""}
       ${errors.length > 0 ? `
         <section class="errors" aria-labelledby="errors-title" role="alert">
           <h3 id="errors-title">Importazione non riuscita</h3>
@@ -111,6 +121,7 @@ function renderBackupManager(hasState: boolean, notice = "", error = ""): string
         <p class="eyebrow">Trasferimento manuale</p>
         <h2 id="backup-title">Backup locale</h2>
         <p>Esporta o ripristina l’intero stato con un unico file. Non è una sincronizzazione automatica.</p>
+        <p>Il salvataggio automatico vale sullo stesso dispositivo, browser e profilo in navigazione normale.</p>
         <button type="button" data-export-backup ${hasState ? "" : "disabled"}>Esporta Backup locale</button>
       </div>
       <form data-backup-form>
@@ -136,7 +147,13 @@ function render(
   operationTarget: OperationTarget = "import",
 ): void {
   const state = application.observe();
-  root.innerHTML = state
+  const persistence = application.persistenceStatus();
+  const content = persistence.status === "blocked"
+    ? renderBlockedPersistence(
+        persistence.error,
+        operationTarget === "persistence" ? operationError : "",
+      )
+    : state
     ? state.auction
       ? renderActiveAuction(
           state,
@@ -151,7 +168,38 @@ function render(
         errors,
         operationTarget === "backup" ? notice : "",
         operationTarget === "backup" ? operationError : "",
+        operationTarget === "import" ? operationError : "",
       );
+  root.innerHTML = `${persistence.status === "recovered"
+    ? `<p class="persistence-warning" role="status">${escapeHtml(persistence.notice)}</p>`
+    : ""}${content}`;
+
+  root.querySelector<HTMLButtonElement>("[data-export-problematic]")
+    ?.addEventListener("click", () => {
+      const result = application.exportProblematicData();
+      if (result.status === "unavailable") return;
+      const url = URL.createObjectURL(new Blob([result.contents], { type: "application/json" }));
+      const link = document.createElement("a");
+      link.href = url;
+      link.download = result.filename;
+      link.click();
+      window.setTimeout(() => URL.revokeObjectURL(url), 0);
+    });
+
+  root.querySelector<HTMLButtonElement>("[data-reset-problematic]")
+    ?.addEventListener("click", () => {
+      let result = application.resetProblematicData();
+      if (result.status === "confirmation-required") {
+        if (!window.confirm(
+          "Resettare esplicitamente i dati locali illeggibili? Entrambe le copie saranno eliminate.",
+        )) return;
+        result = application.resetProblematicData(true);
+      }
+      if (result.status === "reset") render(root, application, viewState);
+      if (result.status === "failed") {
+        render(root, application, viewState, [], "", result.error, "persistence");
+      }
+    });
 
   root.querySelector<HTMLButtonElement>("[data-export-backup]")
     ?.addEventListener("click", () => {
@@ -218,7 +266,7 @@ function render(
       viewState,
       result.status === "invalid" ? result.errors : [],
       result.status === "replaced" ? "Catalogo calciatori sostituito." : "",
-      result.status === "blocked" ? result.error : "",
+      resultError(result),
     );
   });
 
@@ -243,7 +291,11 @@ function render(
       opponentTeamNames: Array.from(setupForm.querySelectorAll<HTMLInputElement>("[data-opponent-name]"))
         .map((input) => input.value),
     });
-    if (result.status === "started") render(root, application, viewState);
+    if (result.status === "started") {
+      render(root, application, viewState);
+    } else {
+      render(root, application, viewState, [], "", result.error, "configuration");
+    }
   });
 
   const teamCountInput = setupForm?.elements.namedItem("teamCount");
@@ -280,7 +332,7 @@ function render(
       viewState,
       [],
       result.status === "updated" ? "Configurazione d’asta salvata." : "",
-      result.status === "invalid" ? result.error : "",
+      resultError(result),
       "configuration",
     );
   });
@@ -307,6 +359,8 @@ function render(
         "",
         "configuration",
       );
+    } else if (result.status === "invalid" || result.status === "failed") {
+      render(root, application, viewState, [], "", result.error, "configuration");
     }
   });
 
@@ -320,7 +374,7 @@ function render(
       viewState,
       [],
       result.status === "updated" ? "Categoria creata." : "",
-      result.status === "invalid" ? result.error : "",
+      resultError(result),
       "shortlist",
     );
   });
@@ -338,7 +392,7 @@ function render(
         viewState,
         [],
         "",
-        result.status === "invalid" ? result.error : "",
+        resultError(result),
         "shortlist",
       );
     });
@@ -357,7 +411,7 @@ function render(
         viewState,
         [],
         result.status === "updated" ? "Categoria rinominata." : "",
-        result.status === "invalid" ? result.error : "",
+        resultError(result),
         "shortlist",
       );
     });
@@ -381,7 +435,7 @@ function render(
         viewState,
         [],
         result.status === "updated" ? "Categoria eliminata." : "",
-        result.status === "invalid" ? result.error : "",
+        resultError(result),
         "shortlist",
       );
     });
@@ -529,7 +583,7 @@ function render(
         );
         return;
       }
-      if (result.status === "invalid") {
+      if (result.status === "invalid" || result.status === "failed") {
         render(root, application, viewState, [], "", result.error, "purchase");
       }
     });
@@ -568,6 +622,25 @@ function render(
   });
 }
 
+function renderBlockedPersistence(error: string, operationError: string): string {
+  return `
+    <div class="shell blocked-persistence">
+      ${renderHeader()}
+      <section class="card" aria-labelledby="blocked-persistence-title">
+        <p class="eyebrow">Protezione dei dati locali</p>
+        <h1 id="blocked-persistence-title">Sessione locale bloccata</h1>
+        <p class="errors" role="alert">${escapeHtml(error)}</p>
+        <p>Nessun dato è stato reimpostato. Esporta le copie problematiche per la diagnosi oppure conferma un reset esplicito.</p>
+        ${operationError ? `<p class="errors" role="alert">${escapeHtml(operationError)}</p>` : ""}
+        <div class="blocked-persistence-actions">
+          <button type="button" data-export-problematic>Esporta dati problematici</button>
+          <button type="button" class="secondary-button" data-reset-problematic>Resetta dati locali</button>
+        </div>
+      </section>
+    </div>
+  `;
+}
+
 function readNumber(form: HTMLFormElement, name: string): number {
   const input = form.elements.namedItem(name);
   return input instanceof HTMLInputElement ? input.valueAsNumber : Number.NaN;
@@ -578,7 +651,12 @@ function readText(form: HTMLFormElement, name: string): string {
   return input instanceof HTMLInputElement ? input.value : "";
 }
 
-function renderEmpty(errors: ImportError[], backupNotice: string, backupError: string): string {
+function renderEmpty(
+  errors: ImportError[],
+  backupNotice: string,
+  backupError: string,
+  importError: string,
+): string {
   return `
     <div class="shell">
       ${renderHeader()}
@@ -588,7 +666,7 @@ function renderEmpty(errors: ImportError[], backupNotice: string, backupError: s
           <h1 id="import-title">Importa il Catalogo calciatori</h1>
           <p class="lede">Carica il CSV completo del provider. Il file viene controllato per intero prima di essere salvato sul dispositivo.</p>
         </div>
-        ${renderImportForm(errors)}
+        ${renderImportForm(errors, false, "", importError)}
       </section>
       ${renderBackupManager(false, backupNotice, backupError)}
     </div>
@@ -620,9 +698,14 @@ function renderCatalog(
           <h1>Catalogo calciatori</h1>
           <p class="catalog-count">${state.catalog.length} calciatori disponibili</p>
         </div>
-        <details class="replace-panel" ${errors.length > 0 || operationTarget === "import" && notice ? "open" : ""}>
+        <details class="replace-panel" ${errors.length > 0 || operationTarget === "import" && (notice || operationError) ? "open" : ""}>
           <summary>Sostituisci Catalogo calciatori</summary>
-          ${renderImportForm(errors, true, operationTarget === "import" ? notice : "")}
+          ${renderImportForm(
+            errors,
+            true,
+            operationTarget === "import" ? notice : "",
+            operationTarget === "import" ? operationError : "",
+          )}
         </details>
       </section>
       <form class="card auction-setup" id="auction-setup">
@@ -631,6 +714,7 @@ function renderCatalog(
           <h2>Configura l’Asta attiva</h2>
           <p>Definisci le regole comuni e assegna un nome alla tua Squadra principale.</p>
           ${operationTarget === "configuration" && notice ? `<p class="notice" role="status">${escapeHtml(notice)}</p>` : ""}
+          ${operationTarget === "configuration" && operationError ? `<p class="errors" role="alert">${escapeHtml(operationError)}</p>` : ""}
         </div>
         <div class="setup-fields">
           <label>Numero di Squadre<input name="teamCount" type="number" min="2" value="${teamCount}" required /></label>

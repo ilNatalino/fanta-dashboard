@@ -18,6 +18,37 @@ body {
     #0e1512;
 }
 
+.persistence-warning {
+  width: min(92rem, calc(100% - 2rem));
+  margin: 1rem auto 0;
+  border: 1px solid #d0a84f;
+  border-radius: 0.75rem;
+  padding: 0.85rem 1rem;
+  color: #f6dc9a;
+  background: #312817;
+}
+
+.blocked-persistence {
+  display: grid;
+  gap: 3rem;
+}
+
+.blocked-persistence .card {
+  max-width: 48rem;
+  margin: 0 auto;
+}
+
+.blocked-persistence h1 {
+  max-width: none;
+  font-size: clamp(2.5rem, 5vw, 4.5rem);
+}
+
+.blocked-persistence-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.75rem;
+}
+
 button,
 input,
 select {

@@ -17,7 +17,8 @@
     "test:ticket18": "npm run build && node --test tests/ticket18.test.mjs",
     "test:ticket19": "npm run build && node --test tests/ticket19.test.mjs",
     "test:ticket20": "npm run build && node --test tests/ticket20.test.mjs",
-    "test:ticket21": "npm run build && node --test tests/ticket21.test.mjs"
+    "test:ticket21": "npm run build && node --test tests/ticket21.test.mjs",
+    "test:ticket22": "npm run build && node --test tests/ticket22.test.mjs"
   },
   "devDependencies": {
     "playwright": "^1.62.1",

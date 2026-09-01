@@ -79,7 +79,8 @@ export type ImportResult =
   | { status: "confirmation-required"; lostAssociations: number }
   | { status: "replaced" }
   | { status: "blocked"; error: string }
-  | { status: "invalid"; errors: ImportError[] };
+  | { status: "invalid"; errors: ImportError[] }
+  | PersistenceFailure;
 
 export type StartAuctionInput = AuctionConfiguration & {
   mainTeamName: string;
@@ -88,7 +89,8 @@ export type StartAuctionInput = AuctionConfiguration & {
 
 export type StartAuctionResult =
   | { status: "started" }
-  | { status: "invalid"; error: string };
+  | { status: "invalid"; error: string }
+  | PersistenceFailure;
 
 export type UpdateAuctionConfigurationInput = {
   mainTeamName: string;
@@ -99,34 +101,55 @@ export type UpdateAuctionConfigurationInput = {
 
 export type UpdateAuctionConfigurationResult =
   | { status: "updated" }
-  | { status: "invalid"; error: string };
+  | { status: "invalid"; error: string }
+  | PersistenceFailure;
+
+type PersistenceFailure = {
+  status: "failed";
+  error: string;
+};
 
 export type ShortlistResult =
   | { status: "updated" }
   | { status: "confirmation-required"; associatedPlayers: number }
-  | { status: "invalid"; error: string };
+  | { status: "invalid"; error: string }
+  | PersistenceFailure;
 
 export type PurchaseResult =
   | { status: "purchased"; teamName: string; remainingBudget: number }
-  | { status: "invalid"; error: string };
+  | { status: "invalid"; error: string }
+  | PersistenceFailure;
 
 export type CorrectionResult =
   | { status: "corrected" }
-  | { status: "invalid"; error: string };
+  | { status: "invalid"; error: string }
+  | PersistenceFailure;
 
 export type CancellationResult =
   | { status: "cancelled" }
   | { status: "confirmation-required" }
-  | { status: "invalid"; error: string };
+  | { status: "invalid"; error: string }
+  | PersistenceFailure;
 
 export type ResetAuctionResult =
   | { status: "reset" }
   | { status: "confirmation-required" }
-  | { status: "invalid"; error: string };
+  | { status: "invalid"; error: string }
+  | PersistenceFailure;
 
 export type ExportBackupResult =
   | { status: "exported"; filename: string; contents: string }
   | { status: "unavailable"; error: string };
+
+export type ExportProblematicDataResult =
+  | { status: "exported"; filename: string; contents: string }
+  | { status: "unavailable"; error: string };
+
+export type ResetProblematicDataResult =
+  | { status: "confirmation-required" }
+  | { status: "reset" }
+  | PersistenceFailure
+  | { status: "invalid"; error: string };
 
 export type ImportBackupResult =
   | { status: "confirmation-required" }
@@ -134,10 +157,22 @@ export type ImportBackupResult =
   | { status: "failed"; error: string }
   | { status: "invalid"; error: string };
 
+export type StoredStateCopies = {
+  current: string | null;
+  previous: string | null;
+};
+
 export interface StateStorage {
-  load(): AppState | null;
+  load(): StoredStateCopies;
   save(state: AppState): void;
+  restorePrevious(): void;
+  clear(): void;
 }
+
+export type PersistenceStatus =
+  | { status: "ready" }
+  | { status: "recovered"; notice: string }
+  | { status: "blocked"; error: string };
 
 export function remainingTeamBudget(
   auction: Readonly<ActiveAuction>,
@@ -210,22 +245,72 @@ export function rolePriceAdaptation(
 
 export class CatalogApplication {
   #state: AppState | null;
+  #persistenceStatus: PersistenceStatus = { status: "ready" };
+  #problematicCopies: StoredStateCopies | null = null;
+  #previousRestorePending = false;
 
   constructor(private readonly storage: StateStorage) {
-    const saved = storage.load();
-    this.#state = saved
-      ? {
-          ...saved,
-          shortlistCategories: saved.shortlistCategories ?? [],
-          auction: saved.auction
-            ? { ...saved.auction, purchases: saved.auction.purchases ?? [] }
-            : undefined,
-        }
-      : null;
+    const copies = storage.load();
+    if (copies.current === null && copies.previous === null) {
+      this.#state = null;
+      return;
+    }
+
+    const current = copies.current === null ? null : validateBackup(copies.current);
+    if (current && typeof current !== "string") {
+      this.#state = current;
+      return;
+    }
+
+    const previous = copies.previous === null ? null : validateBackup(copies.previous);
+    if (previous && typeof previous !== "string") {
+      try {
+        storage.restorePrevious();
+      } catch {
+        this.#previousRestorePending = true;
+      }
+      this.#state = previous;
+      this.#persistenceStatus = {
+        status: "recovered",
+        notice: "È stata recuperata la copia valida precedente. L’ultima operazione potrebbe essere stata persa.",
+      };
+      return;
+    }
+
+    this.#state = null;
+    this.#problematicCopies = copies;
+    this.#persistenceStatus = {
+      status: "blocked",
+      error: "I dati locali non sono leggibili o compatibili. La sessione è bloccata per evitare un reset silenzioso.",
+    };
   }
 
   observe(): Readonly<AppState> | null {
     return this.#state;
+  }
+
+  persistenceStatus(): Readonly<PersistenceStatus> {
+    return this.#persistenceStatus;
+  }
+
+  #restorePreviousBeforeSave(): void {
+    if (!this.#previousRestorePending) return;
+    this.storage.restorePrevious();
+    this.#previousRestorePending = false;
+  }
+
+  #commit(nextState: AppState): PersistenceFailure | null {
+    try {
+      this.#restorePreviousBeforeSave();
+      this.storage.save(nextState);
+    } catch {
+      return {
+        status: "failed",
+        error: "Salvataggio locale non riuscito. L’operazione non è stata completata.",
+      };
+    }
+    this.#state = nextState;
+    return null;
   }
 
   importCatalog(csv: string, replacementConfirmed = false): ImportResult {
@@ -242,8 +327,8 @@ export class CatalogApplication {
         catalog: parsed.players,
         shortlistCategories: [],
       };
-      this.storage.save(nextState);
-      this.#state = nextState;
+      const failure = this.#commit(nextState);
+      if (failure) return failure;
       return { status: "imported" };
     }
 
@@ -276,8 +361,8 @@ export class CatalogApplication {
         }),
       })),
     };
-    this.storage.save(nextState);
-    this.#state = nextState;
+    const failure = this.#commit(nextState);
+    if (failure) return failure;
     return { status: "replaced" };
   }
 
@@ -316,8 +401,8 @@ export class CatalogApplication {
       },
     };
 
-    this.storage.save(nextState);
-    this.#state = nextState;
+    const failure = this.#commit(nextState);
+    if (failure) return failure;
     return { status: "started" };
   }
 
@@ -349,8 +434,8 @@ export class CatalogApplication {
       },
     };
 
-    this.storage.save(nextState);
-    this.#state = nextState;
+    const failure = this.#commit(nextState);
+    if (failure) return failure;
     return { status: "updated" };
   }
 
@@ -376,8 +461,8 @@ export class CatalogApplication {
         { name: categoryName, playerNames: [] },
       ],
     };
-    this.storage.save(nextState);
-    this.#state = nextState;
+    const failure = this.#commit(nextState);
+    if (failure) return failure;
     return { status: "updated" };
   }
 
@@ -420,8 +505,8 @@ export class CatalogApplication {
           : candidate,
       ),
     };
-    this.storage.save(nextState);
-    this.#state = nextState;
+    const failure = this.#commit(nextState);
+    if (failure) return failure;
     return { status: "updated" };
   }
 
@@ -451,8 +536,8 @@ export class CatalogApplication {
         candidate === category ? { ...candidate, name: categoryName } : candidate,
       ),
     };
-    this.storage.save(nextState);
-    this.#state = nextState;
+    const failure = this.#commit(nextState);
+    if (failure) return failure;
     return { status: "updated" };
   }
 
@@ -478,8 +563,8 @@ export class CatalogApplication {
         (candidate) => candidate !== category,
       ),
     };
-    this.storage.save(nextState);
-    this.#state = nextState;
+    const failure = this.#commit(nextState);
+    if (failure) return failure;
     return { status: "updated" };
   }
 
@@ -501,8 +586,8 @@ export class CatalogApplication {
         purchases: [...auction.purchases, { playerName: player.name, teamId: team.id, finalPrice }],
       },
     };
-    this.storage.save(nextState);
-    this.#state = nextState;
+    const failure = this.#commit(nextState);
+    if (failure) return failure;
     return {
       status: "purchased",
       teamName: team.name,
@@ -546,8 +631,8 @@ export class CatalogApplication {
         ),
       },
     };
-    this.storage.save(nextState);
-    this.#state = nextState;
+    const failure = this.#commit(nextState);
+    if (failure) return failure;
     return { status: "corrected" };
   }
 
@@ -571,8 +656,8 @@ export class CatalogApplication {
         purchases: auction.purchases.filter((candidate) => candidate !== purchase),
       },
     };
-    this.storage.save(nextState);
-    this.#state = nextState;
+    const failure = this.#commit(nextState);
+    if (failure) return failure;
     return { status: "cancelled" };
   }
 
@@ -593,8 +678,8 @@ export class CatalogApplication {
         teams: auction.teams,
       },
     };
-    this.storage.save(nextState);
-    this.#state = nextState;
+    const failure = this.#commit(nextState);
+    if (failure) return failure;
     return { status: "reset" };
   }
 
@@ -609,12 +694,44 @@ export class CatalogApplication {
     };
   }
 
+  exportProblematicData(): ExportProblematicDataResult {
+    if (!this.#problematicCopies) {
+      return { status: "unavailable", error: "Non ci sono dati locali problematici da esportare." };
+    }
+    return {
+      status: "exported",
+      filename: "fanta-dashboard-dati-problematici.json",
+      contents: JSON.stringify(this.#problematicCopies, null, 2),
+    };
+  }
+
+  resetProblematicData(confirmed = false): ResetProblematicDataResult {
+    if (!this.#problematicCopies) {
+      return { status: "invalid", error: "La sessione locale non è bloccata." };
+    }
+    if (!confirmed) return { status: "confirmation-required" };
+
+    try {
+      this.storage.clear();
+    } catch {
+      return {
+        status: "failed",
+        error: "Salvataggio locale non riuscito. L’operazione non è stata completata.",
+      };
+    }
+    this.#state = null;
+    this.#problematicCopies = null;
+    this.#persistenceStatus = { status: "ready" };
+    return { status: "reset" };
+  }
+
   importBackup(source: string, confirmed = false): ImportBackupResult {
     const validated = validateBackup(source);
     if (typeof validated === "string") return { status: "invalid", error: validated };
     if (!confirmed) return { status: "confirmation-required" };
 
     try {
+      this.#restorePreviousBeforeSave();
       this.storage.save(validated);
     } catch {
       return { status: "failed", error: "Impossibile salvare il Backup locale ripristinato." };

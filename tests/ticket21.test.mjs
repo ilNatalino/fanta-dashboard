@@ -224,8 +224,10 @@ test("un errore di salvataggio durante il ripristino conserva lo stato corrente"
     catalog: [{ ...currentState.catalog[0], name: "RIPRISTINATO" }],
   };
   const application = new CatalogApplication({
-    load: () => structuredClone(currentState),
+    load: () => ({ current: JSON.stringify(currentState), previous: null }),
     save: () => { throw new Error("quota esaurita"); },
+    restorePrevious: () => { throw new Error("copia precedente assente"); },
+    clear: () => {},
   });
   const stateBeforeRestore = structuredClone(application.observe());
 
