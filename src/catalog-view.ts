@@ -1,7 +1,9 @@
 import {
   CatalogApplication,
+  maximumSpendable,
   occupiedTeamRoleSlots,
   remainingTeamBudget,
+  rolePriceAdaptation,
   type ActiveAuction,
   type AppState,
   type ClassicRole,
@@ -557,6 +559,13 @@ function renderActiveAuction(
   const mainTeam = auction.teams.find((team) => team.isMain)!;
   const mainTeamPurchases = auction.purchases.filter((purchase) => purchase.teamId === mainTeam.id);
   const mainTeamBudget = remainingTeamBudget(auction, mainTeam.id);
+  const selectedPlayer = state.catalog.find(
+    (player) => player.name === viewState.selectedPlayerName,
+  );
+  const selectedRoleIsComplete = selectedPlayer
+    ? occupiedTeamRoleSlots(auction, state.catalog, mainTeam.id, selectedPlayer.role)
+      >= configuration.rosterSlots[selectedPlayer.role]
+    : false;
   const availableCount = availablePlayers(state).length;
   return `
     <div class="shell shell-wide">
@@ -580,11 +589,16 @@ function renderActiveAuction(
             viewState,
             operationTarget === "purchase" ? notice : "",
             operationTarget === "purchase" ? operationError : "",
+            selectedRoleIsComplete,
           )}
         </section>
         <section class="card main-team-summary" aria-label="${escapeHtml(mainTeam.name)}">
           <h2>${escapeHtml(mainTeam.name)}</h2>
-          <p>Budget residuo: ${numberFormatter.format(mainTeamBudget)} crediti</p>
+          <section class="personal-constraints" aria-label="Vincoli personali">
+            <h3>Vincoli personali</h3>
+            <p>Budget residuo: <span>${numberFormatter.format(mainTeamBudget)} crediti</span></p>
+            <p>Massimo spendibile: <span>${numberFormatter.format(maximumSpendable(auction, mainTeam.id))} crediti</span></p>
+          </section>
           <ul>${Object.entries(roleNames).map(([role, name]) => `
             <li data-main-team-role>${name} ${occupiedTeamRoleSlots(auction, state.catalog, mainTeam.id, role as ClassicRole)}/${configuration.rosterSlots[role as ClassicRole]}</li>
           `).join("")}</ul>
@@ -720,6 +734,7 @@ function renderAuctionCard(
   viewState: AuctionViewState,
   notice: string,
   operationError: string,
+  unavailableToMainTeam: boolean,
 ): string {
   const player = state.catalog.find((candidate) => candidate.name === viewState.selectedPlayerName);
   const search = `
@@ -746,6 +761,11 @@ function renderAuctionCard(
       ? "Sottovalutato"
       : "In linea";
   const signedHistoricalMarketDifference = `${historicalMarketDifferencePercent > 0 ? "+" : ""}${Math.round(historicalMarketDifferencePercent)}%`;
+  const adaptation = rolePriceAdaptation(auction, state.catalog, player);
+  const observationLabel = adaptation?.observations === 1 ? "Acquisto" : "Acquisti";
+  const signedAuctionDeviation = adaptation
+    ? `${adaptation.deviationPercent > 0 ? "+" : ""}${adaptation.deviationPercent}%`
+    : "";
 
   return `
     ${search}
@@ -757,13 +777,22 @@ function renderAuctionCard(
         </div>
         <button type="button" class="secondary-button" data-close-auction-card>Chiudi Scheda d’asta</button>
       </div>
-      <dl class="player-facts">
-        <div><dt>PMA</dt><dd>${numberFormatter.format(Math.round(player.pma))}</dd></div>
-        <div><dt>PFC</dt><dd>${numberFormatter.format(Math.round(player.pfc))}</dd></div>
-        <div><dt>Percezione storica di mercato</dt><dd>${perception} · ${signedHistoricalMarketDifference}</dd></div>
-        <div><dt>Fantamedia prevista</dt><dd>${numberFormatter.format(player.expectedFantamedia)}</dd></div>
-        <div><dt>Titolarità prevista</dt><dd>${Math.round(player.expectedTitolarita)}%</dd></div>
-      </dl>
+      ${unavailableToMainTeam ? '<p class="unavailable-player">Non acquistabile</p>' : ""}
+      <section class="market-signals" aria-label="Segnali di mercato">
+        <h4>Segnali di mercato</h4>
+        <dl class="player-facts">
+          <div><dt>PMA</dt><dd>${numberFormatter.format(Math.round(player.pma))}</dd></div>
+          <div><dt>PFC</dt><dd>${numberFormatter.format(Math.round(player.pfc))}</dd></div>
+          <div><dt>Percezione storica di mercato</dt><dd>${perception} · ${signedHistoricalMarketDifference}</dd></div>
+          <div><dt>Fantamedia prevista</dt><dd>${numberFormatter.format(player.expectedFantamedia)}</dd></div>
+          <div><dt>Titolarità prevista</dt><dd>${Math.round(player.expectedTitolarita)}%</dd></div>
+          ${adaptation ? `
+            <div><dt>Prezzo adattato all’asta</dt><dd>${numberFormatter.format(adaptation.adaptedPrice)} crediti</dd></div>
+            <div><dt>Scostamento d’asta per ruolo</dt><dd>${signedAuctionDeviation}</dd></div>
+            <div><dt>Osservazioni</dt><dd>${adaptation.observations} ${observationLabel}</dd></div>
+          ` : "<div><dt>Prezzo adattato all’asta</dt><dd>Dati insufficienti</dd></div>"}
+        </dl>
+      </section>
       <button type="button" data-open-purchase>Assegna giocatore</button>
       ${viewState.assignmentOpen ? renderPurchaseForm(auction, viewState, operationError) : ""}
       ${renderAuctionCardShortlist(player, state)}

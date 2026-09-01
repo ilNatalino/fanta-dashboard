@@ -129,6 +129,42 @@ export function occupiedTeamRoleSlots(
   ).length;
 }
 
+export function maximumSpendable(
+  auction: Readonly<ActiveAuction>,
+  teamId: string,
+): number {
+  const occupiedSlots = auction.purchases.filter((purchase) => purchase.teamId === teamId).length;
+  const rosterSize = Object.values(auction.configuration.rosterSlots)
+    .reduce((total, slots) => total + slots, 0);
+  const otherSlotsToFill = Math.max(rosterSize - occupiedSlots - 1, 0);
+  return remainingTeamBudget(auction, teamId) - otherSlotsToFill;
+}
+
+export function rolePriceAdaptation(
+  auction: Readonly<ActiveAuction>,
+  catalog: readonly Player[],
+  player: Readonly<Player>,
+): { adaptedPrice: number; deviationPercent: number; observations: number } | null {
+  const ratios = auction.purchases.flatMap((purchase) => {
+    const purchasedPlayer = catalog.find((candidate) => candidate.name === purchase.playerName);
+    return purchasedPlayer?.role === player.role
+      ? [purchase.finalPrice / purchasedPlayer.pfc]
+      : [];
+  }).sort((left, right) => left - right);
+
+  if (ratios.length < auction.configuration.adaptationThreshold) return null;
+
+  const middle = Math.floor(ratios.length / 2);
+  const median = ratios.length % 2 === 1
+    ? ratios[middle]!
+    : (ratios[middle - 1]! + ratios[middle]!) / 2;
+  return {
+    adaptedPrice: Math.round(player.pfc * median),
+    deviationPercent: Math.round((median - 1) * 100),
+    observations: ratios.length,
+  };
+}
+
 export class CatalogApplication {
   #state: AppState | null;
 

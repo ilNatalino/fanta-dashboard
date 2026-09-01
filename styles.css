@@ -320,6 +320,32 @@ select {
   list-style: none;
 }
 
+.personal-constraints {
+  margin: 1rem 0;
+  border: 1px solid #506159;
+  border-radius: 0.75rem;
+  padding: 0.85rem;
+  background: #111a15;
+}
+
+.personal-constraints h3,
+.market-signals h4 {
+  margin: 0;
+}
+
+.personal-constraints p {
+  margin: 0.75rem 0 0;
+  color: #8d9a91;
+  font-size: 0.75rem;
+}
+
+.personal-constraints span {
+  display: block;
+  margin-top: 0.25rem;
+  color: #f5f4ef;
+  font-weight: 800;
+}
+
 .role-tabs {
   display: grid;
   grid-template-columns: repeat(4, 1fr);
@@ -431,6 +457,15 @@ select {
   grid-template-columns: repeat(2, minmax(0, 1fr));
   gap: 0.75rem;
   margin: 1rem 0 0;
+}
+
+.market-signals {
+  margin-top: 1rem;
+}
+
+.card .unavailable-player {
+  color: #ffb3aa;
+  font-weight: 800;
 }
 
 .player-facts div {
