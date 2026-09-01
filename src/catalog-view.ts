@@ -83,13 +83,13 @@ function resetAssignmentDraft(viewState: AuctionViewState): void {
 function renderImportForm(errors: ImportError[], compact = false, notice = ""): string {
   return `
     <form class="card import-card" data-import-form>
-      <h2>${compact ? "Controlla un altro CSV" : "File del provider"}</h2>
-      <p>${compact ? "Verifica un file aggiornato senza modificare il Catalogo corrente." : "Il Catalogo calciatori è necessario prima di configurare l’Asta attiva."}</p>
+      <h2>${compact ? "Catalogo aggiornato" : "File del provider"}</h2>
+      <p>${compact ? "Il file viene validato per intero prima di chiedere conferma e sostituire il Catalogo corrente." : "Il Catalogo calciatori è necessario prima di configurare l’Asta attiva."}</p>
       <label class="file-label">
         Seleziona CSV
         <input name="catalog" type="file" accept=".csv,text/csv" required />
       </label>
-      <button class="import-button" type="submit">${compact ? "Controlla CSV" : "Importa catalogo"}</button>
+      <button class="import-button" type="submit">${compact ? "Conferma sostituzione" : "Importa catalogo"}</button>
       ${notice ? `<p class="notice" role="status">${escapeHtml(notice)}</p>` : ""}
       ${errors.length > 0 ? `
         <section class="errors" aria-labelledby="errors-title" role="alert">
@@ -133,13 +133,22 @@ function render(
     const input = form.elements.namedItem("catalog");
     if (!(input instanceof HTMLInputElement) || !input.files?.[0]) return;
 
-    const result = application.importCatalog(await input.files[0].text());
+    const csv = await input.files[0].text();
+    let result = application.importCatalog(csv);
+    if (result.status === "confirmation-required") {
+      const noun = result.lostAssociations === 1 ? "associazione" : "associazioni";
+      if (!window.confirm(
+        `La sostituzione rimuoverà ${result.lostAssociations} ${noun} della Shortlist. Sostituire l’intero Catalogo calciatori?`,
+      )) return;
+      result = application.importCatalog(csv, true);
+    }
     render(
       root,
       application,
       viewState,
       result.status === "invalid" ? result.errors : [],
-      result.status === "checked" ? "CSV valido. Il Catalogo corrente non è stato modificato." : "",
+      result.status === "replaced" ? "Catalogo calciatori sostituito." : "",
+      result.status === "blocked" ? result.error : "",
     );
   });
 
@@ -536,7 +545,7 @@ function renderCatalog(
           <p class="catalog-count">${state.catalog.length} calciatori disponibili</p>
         </div>
         <details class="replace-panel" ${errors.length > 0 || operationTarget === "import" && notice ? "open" : ""}>
-          <summary>Controlla un altro CSV</summary>
+          <summary>Sostituisci Catalogo calciatori</summary>
           ${renderImportForm(errors, true, operationTarget === "import" ? notice : "")}
         </details>
       </section>
@@ -733,6 +742,10 @@ function renderActiveAuction(
         <p>${auctionComplete
           ? "Tutte le Squadre hanno occupato i Posti di ruolo configurati."
           : "Le regole strutturali sono bloccate. I nomi delle Squadre restano modificabili."}</p>
+        <div class="catalog-replacement-blocked">
+          <button type="button" disabled>Sostituisci Catalogo calciatori</button>
+          <p>Per sostituire il Catalogo calciatori devi prima eseguire il Reset dell’asta.</p>
+        </div>
       </section>
       <div class="auction-command-center">
         <section class="card" aria-label="Ranking e Scarsità">

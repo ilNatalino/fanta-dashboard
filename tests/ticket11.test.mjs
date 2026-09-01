@@ -94,7 +94,7 @@ test("tutti gli errori di riga sono mostrati e il Catalogo valido precedente res
     mimeType: "text/csv",
     buffer: Buffer.from(csv),
   });
-  await page.getByRole("button", { name: "Controlla CSV" }).click();
+  await page.getByRole("button", { name: "Conferma sostituzione" }).click();
   await page.getByRole("alert").waitFor({ state: "visible" });
 
   const alertText = await page.getByRole("alert").innerText();
@@ -112,7 +112,7 @@ test("tutti gli errori di riga sono mostrati e il Catalogo valido precedente res
   await page.close();
 });
 
-test("un secondo CSV valido viene solo controllato e non anticipa la sostituzione del Catalogo", async () => {
+test("un secondo CSV valido richiede conferma prima di sostituire il Catalogo", async () => {
   const page = await openPage();
   await importRepresentativeCatalog(page);
   await page.locator("summary").click();
@@ -126,10 +126,9 @@ test("un secondo CSV valido viene solo controllato e non anticipa la sostituzion
     mimeType: "text/csv",
     buffer: Buffer.from(csv),
   });
-  await page.getByRole("button", { name: "Controlla CSV" }).click();
-  await page.getByRole("status").waitFor({ state: "visible" });
+  page.once("dialog", (dialog) => dialog.dismiss());
+  await page.getByRole("button", { name: "Conferma sostituzione" }).click();
 
-  assert.equal(await page.getByRole("status").innerText(), "CSV valido. Il Catalogo corrente non è stato modificato.");
   assert.equal(await page.getByText("32 calciatori disponibili").isVisible(), true);
   assert.equal(await page.getByRole("row").count(), 33);
 

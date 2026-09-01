@@ -76,7 +76,9 @@ export type ImportError = {
 
 export type ImportResult =
   | { status: "imported" }
-  | { status: "checked" }
+  | { status: "confirmation-required"; lostAssociations: number }
+  | { status: "replaced" }
+  | { status: "blocked"; error: string }
   | { status: "invalid"; errors: ImportError[] };
 
 export type StartAuctionInput = AuctionConfiguration & {
@@ -216,25 +218,57 @@ export class CatalogApplication {
     return this.#state;
   }
 
-  importCatalog(csv: string): ImportResult {
+  importCatalog(csv: string, replacementConfirmed = false): ImportResult {
     const parsed = validateCatalog(csv);
 
     if (parsed.errors.length > 0) {
       return { status: "invalid", errors: parsed.errors };
     }
 
-    if (this.#state) {
-      return { status: "checked" };
+    const state = this.#state;
+    if (!state) {
+      const nextState: AppState = {
+        version: 1,
+        catalog: parsed.players,
+        shortlistCategories: [],
+      };
+      this.storage.save(nextState);
+      this.#state = nextState;
+      return { status: "imported" };
     }
 
+    if (state.auction) {
+      return {
+        status: "blocked",
+        error: "Per sostituire il Catalogo calciatori devi prima eseguire il Reset dell’asta.",
+      };
+    }
+
+    const replacementNames = new Map(
+      parsed.players.map((player) => [normalizeName(player.name), player.name]),
+    );
+    const lostAssociations = state.shortlistCategories.reduce(
+      (total, category) => total + category.playerNames.filter(
+        (playerName) => !replacementNames.has(normalizeName(playerName)),
+      ).length,
+      0,
+    );
+    if (!replacementConfirmed) return { status: "confirmation-required", lostAssociations };
+
     const nextState: AppState = {
-      version: 1,
+      ...state,
       catalog: parsed.players,
-      shortlistCategories: [],
+      shortlistCategories: state.shortlistCategories.map((category) => ({
+        ...category,
+        playerNames: category.playerNames.flatMap((playerName) => {
+          const replacementName = replacementNames.get(normalizeName(playerName));
+          return replacementName ? [replacementName] : [];
+        }),
+      })),
     };
     this.storage.save(nextState);
     this.#state = nextState;
-    return { status: "imported" };
+    return { status: "replaced" };
   }
 
   startAuction(input: StartAuctionInput): StartAuctionResult {

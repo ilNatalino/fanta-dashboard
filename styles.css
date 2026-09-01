@@ -456,7 +456,19 @@ select {
   padding: 3rem 0 1.5rem;
 }
 
-.active-heading > p:last-child {
+.active-heading > p:not(.eyebrow) {
+  color: #aebbb2;
+}
+
+.catalog-replacement-blocked {
+  display: flex;
+  gap: 0.75rem;
+  align-items: center;
+  margin-top: 1rem;
+}
+
+.catalog-replacement-blocked p {
+  margin: 0;
   color: #aebbb2;
 }
 
