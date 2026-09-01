@@ -155,9 +155,10 @@ test("la Shortlist nasconde gli acquistati per impostazione predefinita e può m
 
   await page.getByLabel("Mostra anche gli acquistati nella Shortlist").check();
   assert.equal(
-    await ranking.getByRole("listitem").innerText(),
+    await page.getByRole("list", { name: "Acquistati nella Shortlist" }).getByRole("listitem").innerText(),
     "GIOCATORE_D_01 · PFC 143 · Acquistato",
   );
+  assert.equal(await ranking.getByRole("listitem").count(), 0);
 
   page.once("dialog", (dialog) => dialog.accept());
   await page.getByRole("row", { name: /GIOCATORE_D_01/ })

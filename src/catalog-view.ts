@@ -762,12 +762,20 @@ function renderRankingAndScarcity(
   const selectedCategory = state.shortlistCategories.find(
     (category) => category.name === viewState.shortlistCategory,
   );
-  const shortlistPlayers = selectedCategory && viewState.showPurchasedShortlist
-    ? catalogRolePlayers
-    : availableRolePlayers;
-  const players = shortlistPlayers
+  const players = availableRolePlayers
     .filter((player) => !selectedCategory || selectedCategory.playerNames.includes(player.name))
     .sort((left, right) => compareRankedPlayers(left, right, viewState.rankingSort));
+  const purchasedPlayerNames = new Set(
+    state.auction?.purchases.map((purchase) => purchase.playerName) ?? [],
+  );
+  const purchasedShortlistPlayers = selectedCategory && viewState.showPurchasedShortlist
+    ? catalogRolePlayers
+      .filter((player) =>
+        purchasedPlayerNames.has(player.name)
+        && selectedCategory.playerNames.includes(player.name)
+      )
+      .sort((left, right) => compareRankedPlayers(left, right, viewState.rankingSort))
+    : [];
   const maxSlot = Math.max(0, ...catalogRolePlayers.map((player) => player.slot));
 
   return `
@@ -804,12 +812,15 @@ function renderRankingAndScarcity(
       />
       Mostra anche gli acquistati nella Shortlist
     </label>
-    <ol class="ranking-list" aria-label="Ranking ${roleNames[role]}">${players.map((player) => {
-      const purchased = state.auction?.purchases.some(
-        (purchase) => purchase.playerName === player.name,
-      );
-      return `<li><button type="button" data-call-player="${escapeHtml(player.name)}">${escapeHtml(player.name)} · ${renderRankingValue(player, viewState.rankingSort)}${purchased ? " · Acquistato" : ""}</button></li>`;
-    }).join("")}</ol>
+    ${selectedCategory && viewState.showPurchasedShortlist ? `
+      <h3>Acquistati nella Shortlist</h3>
+      <ul class="ranking-list" aria-label="Acquistati nella Shortlist">${purchasedShortlistPlayers.map((player) =>
+        `<li><button type="button" data-call-player="${escapeHtml(player.name)}">${escapeHtml(player.name)} · ${renderRankingValue(player, viewState.rankingSort)} · Acquistato</button></li>`,
+      ).join("")}</ul>
+    ` : ""}
+    <ol class="ranking-list" aria-label="Ranking ${roleNames[role]}">${players.map((player) =>
+      `<li><button type="button" data-call-player="${escapeHtml(player.name)}">${escapeHtml(player.name)} · ${renderRankingValue(player, viewState.rankingSort)}</button></li>`,
+    ).join("")}</ol>
     <h3>Scarsità per slot</h3>
     <ul class="scarcity-list" aria-label="Scarsità ${roleNames[role]}">${Array.from(
       { length: maxSlot },
