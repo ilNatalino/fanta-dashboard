@@ -1,4 +1,5 @@
 import { createServer } from "node:http";
+import { once } from "node:events";
 import { readFile } from "node:fs/promises";
 import { extname, resolve, sep } from "node:path";
 import { pathToFileURL } from "node:url";
@@ -28,7 +29,8 @@ export async function startServer(root, port = 0) {
     }
   });
 
-  await new Promise((resolveListening) => server.listen(port, "127.0.0.1", resolveListening));
+  server.listen(port, "127.0.0.1");
+  await once(server, "listening");
   const address = server.address();
 
   if (!address || typeof address === "string") {
