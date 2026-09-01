@@ -19,14 +19,17 @@ const numberFormatter = new Intl.NumberFormat("it-IT", {
 });
 type OperationTarget = "import" | "configuration" | "shortlist" | "purchase";
 type RankingSort = "pfc" | "slot" | "pma" | "expectedFantamedia" | "expectedTitolarita";
+type CorrectionDraft = { playerName: string; teamId: string; price: string };
 type AuctionViewState = {
   selectedPlayerName: string | null;
   selectedRole: ClassicRole;
   rankingSort: RankingSort;
   shortlistCategory: string;
+  showPurchasedShortlist: boolean;
   assignmentOpen: boolean;
   assignmentTeamId: string;
   assignmentPrice: string;
+  correctionDraft: CorrectionDraft | null;
 };
 
 const catalogColumns: Array<{
@@ -50,9 +53,11 @@ export function mountCatalogApp(root: HTMLElement): void {
     selectedRole: "P",
     rankingSort: "pfc",
     shortlistCategory: "",
+    showPurchasedShortlist: false,
     assignmentOpen: false,
     assignmentTeamId: "",
     assignmentPrice: "",
+    correctionDraft: null,
   });
 }
 
@@ -314,6 +319,12 @@ function render(
       render(root, application, viewState);
     });
 
+  root.querySelector<HTMLInputElement>("[data-show-purchased-shortlist]")
+    ?.addEventListener("change", (event) => {
+      viewState.showPurchasedShortlist = (event.currentTarget as HTMLInputElement).checked;
+      render(root, application, viewState);
+    });
+
   root.querySelectorAll<HTMLButtonElement>("[data-call-player]").forEach((button) => {
     button.addEventListener("click", () => {
       viewState.selectedPlayerName = button.dataset.callPlayer ?? null;
@@ -357,6 +368,85 @@ function render(
       return;
     }
 
+    render(root, application, viewState, [], "", result.error, "purchase");
+  });
+
+  root.querySelectorAll<HTMLButtonElement>("[data-edit-purchase]").forEach((button) => {
+    button.addEventListener("click", () => {
+      const playerName = button.dataset.editPurchase ?? "";
+      const purchase = state?.auction?.purchases.find(
+        (candidate) => candidate.playerName === playerName,
+      );
+      if (!purchase) return;
+      viewState.correctionDraft = {
+        playerName: purchase.playerName,
+        teamId: purchase.teamId,
+        price: String(purchase.finalPrice),
+      };
+      render(root, application, viewState);
+    });
+  });
+
+  root.querySelectorAll<HTMLButtonElement>("[data-cancel-purchase]").forEach((button) => {
+    button.addEventListener("click", () => {
+      const playerName = button.dataset.cancelPurchase ?? "";
+      let result = application.cancelPurchase(playerName);
+      if (result.status === "confirmation-required") {
+        if (!window.confirm(
+          `Annullare l’Acquisto di ${playerName} e restituire il calciatore ai disponibili?`,
+        )) return;
+        result = application.cancelPurchase(playerName, true);
+      }
+      if (result.status === "cancelled") {
+        if (viewState.correctionDraft?.playerName === playerName) {
+          viewState.correctionDraft = null;
+        }
+        render(
+          root,
+          application,
+          viewState,
+          [],
+          `${playerName}: Acquisto annullato.`,
+          "",
+          "purchase",
+        );
+        return;
+      }
+      if (result.status === "invalid") {
+        render(root, application, viewState, [], "", result.error, "purchase");
+      }
+    });
+  });
+
+  const correctionForm = root.querySelector<HTMLFormElement>("[data-correction-form]");
+  correctionForm?.addEventListener("submit", (event) => {
+    event.preventDefault();
+    const teamInput = correctionForm.elements.namedItem("teamId");
+    const priceInput = correctionForm.elements.namedItem("finalPrice");
+    const playerName = viewState.correctionDraft?.playerName ?? "";
+    viewState.correctionDraft = {
+      playerName,
+      teamId: teamInput instanceof HTMLSelectElement ? teamInput.value : "",
+      price: priceInput instanceof HTMLInputElement ? priceInput.value : "",
+    };
+    const result = application.correctPurchase(
+      playerName,
+      viewState.correctionDraft.teamId,
+      priceInput instanceof HTMLInputElement ? priceInput.valueAsNumber : Number.NaN,
+    );
+    if (result.status === "corrected") {
+      viewState.correctionDraft = null;
+      render(
+        root,
+        application,
+        viewState,
+        [],
+        `${playerName}: Correzione dell’acquisto salvata.`,
+        "",
+        "purchase",
+      );
+      return;
+    }
     render(root, application, viewState, [], "", result.error, "purchase");
   });
 }
@@ -437,7 +527,11 @@ function renderCatalog(
   `;
 }
 
-function renderCatalogTable(state: Readonly<AppState>): string {
+function renderCatalogTable(
+  state: Readonly<AppState>,
+  viewState?: AuctionViewState,
+  operationError = "",
+): string {
   const showAvailability = Boolean(state.auction);
   return `
     <div class="table-frame">
@@ -451,7 +545,12 @@ function renderCatalogTable(state: Readonly<AppState>): string {
             ? state.auction?.teams.find((candidate) => candidate.id === purchase.teamId)
             : undefined;
           const availability = purchase
-            ? `Acquistato · ${escapeHtml(team?.name ?? "Squadra non disponibile")} · ${purchase.finalPrice} crediti`
+            ? `Acquistato · ${escapeHtml(team?.name ?? "Squadra non disponibile")} · ${purchase.finalPrice} crediti
+              <button type="button" data-edit-purchase="${escapeHtml(player.name)}" aria-label="Correggi Acquisto ${escapeHtml(player.name)}">Correggi</button>
+              <button type="button" data-cancel-purchase="${escapeHtml(player.name)}" aria-label="Annulla Acquisto ${escapeHtml(player.name)}">Annulla</button>
+              ${viewState?.correctionDraft?.playerName === player.name
+                ? renderCorrectionForm(state.auction!, viewState.correctionDraft, operationError)
+                : ""}`
             : "Disponibile";
           return `
             <tr>${catalogColumns.map((column) => column.rowHeader
@@ -644,7 +743,11 @@ function renderActiveAuction(
         operationTarget === "shortlist" ? notice : "",
         operationTarget === "shortlist" ? operationError : "",
       )}
-      ${renderCatalogTable(state)}
+      ${renderCatalogTable(
+        state,
+        viewState,
+        operationTarget === "purchase" ? operationError : "",
+      )}
     </div>
   `;
 }
@@ -659,7 +762,10 @@ function renderRankingAndScarcity(
   const selectedCategory = state.shortlistCategories.find(
     (category) => category.name === viewState.shortlistCategory,
   );
-  const players = availableRolePlayers
+  const shortlistPlayers = selectedCategory && viewState.showPurchasedShortlist
+    ? catalogRolePlayers
+    : availableRolePlayers;
+  const players = shortlistPlayers
     .filter((player) => !selectedCategory || selectedCategory.playerNames.includes(player.name))
     .sort((left, right) => compareRankedPlayers(left, right, viewState.rankingSort));
   const maxSlot = Math.max(0, ...catalogRolePlayers.map((player) => player.slot));
@@ -689,9 +795,21 @@ function renderRankingAndScarcity(
         `).join("")}
       </select>
     </label>
-    <ol class="ranking-list" aria-label="Ranking ${roleNames[role]}">${players.map((player) =>
-      `<li><button type="button" data-call-player="${escapeHtml(player.name)}">${escapeHtml(player.name)} · ${renderRankingValue(player, viewState.rankingSort)}</button></li>`,
-    ).join("")}</ol>
+    <label class="ranking-checkbox">
+      <input
+        type="checkbox"
+        data-show-purchased-shortlist
+        ${viewState.showPurchasedShortlist ? "checked" : ""}
+        ${selectedCategory ? "" : "disabled"}
+      />
+      Mostra anche gli acquistati nella Shortlist
+    </label>
+    <ol class="ranking-list" aria-label="Ranking ${roleNames[role]}">${players.map((player) => {
+      const purchased = state.auction?.purchases.some(
+        (purchase) => purchase.playerName === player.name,
+      );
+      return `<li><button type="button" data-call-player="${escapeHtml(player.name)}">${escapeHtml(player.name)} · ${renderRankingValue(player, viewState.rankingSort)}${purchased ? " · Acquistato" : ""}</button></li>`;
+    }).join("")}</ol>
     <h3>Scarsità per slot</h3>
     <ul class="scarcity-list" aria-label="Scarsità ${roleNames[role]}">${Array.from(
       { length: maxSlot },
@@ -822,6 +940,34 @@ function renderPurchaseForm(
         <input name="finalPrice" type="number" min="1" step="1" value="${escapeHtml(viewState.assignmentPrice)}" required />
       </label>
       <button type="submit">Registra Acquisto</button>
+      ${operationError ? `<p class="errors" role="alert">${escapeHtml(operationError)}</p>` : ""}
+    </form>
+  `;
+}
+
+function renderCorrectionForm(
+  auction: Readonly<ActiveAuction>,
+  draft: CorrectionDraft,
+  operationError: string,
+): string {
+  return `
+    <form
+      class="purchase-panel"
+      data-correction-form
+      aria-label="Correzione dell’acquisto ${escapeHtml(draft.playerName)}"
+    >
+      <h4>Correzione dell’acquisto</h4>
+      <label>Squadra
+        <select name="teamId" required>
+          ${auction.teams.map((team) => `
+            <option value="${escapeHtml(team.id)}" ${draft.teamId === team.id ? "selected" : ""}>${escapeHtml(team.name)}</option>
+          `).join("")}
+        </select>
+      </label>
+      <label>Prezzo finale
+        <input name="finalPrice" type="number" min="1" step="1" value="${escapeHtml(draft.price)}" required />
+      </label>
+      <button type="submit">Salva Correzione dell’acquisto</button>
       ${operationError ? `<p class="errors" role="alert">${escapeHtml(operationError)}</p>` : ""}
     </form>
   `;

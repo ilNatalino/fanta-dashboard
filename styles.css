@@ -375,6 +375,19 @@ select {
   font-weight: 700;
 }
 
+.ranking-checkbox {
+  display: flex;
+  gap: 0.5rem;
+  align-items: center;
+  margin-top: 0.75rem;
+  color: #c3cec6;
+  font-size: 0.75rem;
+}
+
+.ranking-checkbox input {
+  width: auto;
+}
+
 .ranking-list {
   display: grid;
   gap: 0.35rem;
