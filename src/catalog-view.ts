@@ -18,7 +18,7 @@ const numberFormatter = new Intl.NumberFormat("it-IT", {
   maximumFractionDigits: 2,
   useGrouping: true,
 });
-type OperationTarget = "import" | "configuration" | "shortlist" | "purchase";
+type OperationTarget = "import" | "configuration" | "shortlist" | "purchase" | "backup";
 type RankingSort = "pfc" | "slot" | "pma" | "expectedFantamedia" | "expectedTitolarita";
 type ActiveView = "auction" | "my-team" | "teams";
 type CorrectionDraft = { playerName: string; teamId: string; price: string };
@@ -104,6 +104,28 @@ function renderImportForm(errors: ImportError[], compact = false, notice = ""): 
   `;
 }
 
+function renderBackupManager(hasState: boolean, notice = "", error = ""): string {
+  return `
+    <section class="card backup-manager" aria-labelledby="backup-title">
+      <div>
+        <p class="eyebrow">Trasferimento manuale</p>
+        <h2 id="backup-title">Backup locale</h2>
+        <p>Esporta o ripristina l’intero stato con un unico file. Non è una sincronizzazione automatica.</p>
+        <button type="button" data-export-backup ${hasState ? "" : "disabled"}>Esporta Backup locale</button>
+      </div>
+      <form data-backup-form>
+        <label class="file-label">
+          Seleziona Backup locale
+          <input name="backup" type="file" accept=".json,application/json" required />
+        </label>
+        <button type="submit">Ripristina Backup locale</button>
+        ${notice ? `<p class="notice" role="status">${escapeHtml(notice)}</p>` : ""}
+        ${error ? `<p class="errors" role="alert">${escapeHtml(error)}</p>` : ""}
+      </form>
+    </section>
+  `;
+}
+
 function render(
   root: HTMLElement,
   application: CatalogApplication,
@@ -125,7 +147,55 @@ function render(
           operationTarget,
         )
       : renderCatalog(state, errors, notice, operationError, operationTarget)
-    : renderEmpty(errors);
+    : renderEmpty(
+        errors,
+        operationTarget === "backup" ? notice : "",
+        operationTarget === "backup" ? operationError : "",
+      );
+
+  root.querySelector<HTMLButtonElement>("[data-export-backup]")
+    ?.addEventListener("click", () => {
+      const result = application.exportBackup();
+      if (result.status === "unavailable") {
+        render(root, application, viewState, [], "", result.error, "backup");
+        return;
+      }
+      const url = URL.createObjectURL(new Blob([result.contents], { type: "application/json" }));
+      const link = document.createElement("a");
+      link.href = url;
+      link.download = result.filename;
+      link.click();
+      window.setTimeout(() => URL.revokeObjectURL(url), 0);
+    });
+
+  const backupForm = root.querySelector<HTMLFormElement>("[data-backup-form]");
+  backupForm?.addEventListener("submit", async (event) => {
+    event.preventDefault();
+    const input = backupForm.elements.namedItem("backup");
+    if (!(input instanceof HTMLInputElement) || !input.files?.[0]) return;
+
+    const source = await input.files[0].text();
+    let result = application.importBackup(source);
+    if (result.status === "invalid") {
+      render(root, application, viewState, [], "", result.error, "backup");
+      return;
+    }
+    if (!window.confirm(
+      "Ripristinare il Backup locale e sostituire l’intero stato corrente?",
+    )) return;
+    result = application.importBackup(source, true);
+    if (result.status === "failed") {
+      render(root, application, viewState, [], "", result.error, "backup");
+      return;
+    }
+    if (result.status === "restored") {
+      viewState.activeView = "auction";
+      viewState.selectedPlayerName = null;
+      viewState.correctionDraft = null;
+      resetAssignmentDraft(viewState);
+      render(root, application, viewState, [], "Backup locale ripristinato.", "", "backup");
+    }
+  });
 
   const form = root.querySelector<HTMLFormElement>("[data-import-form]");
   form?.addEventListener("submit", async (event) => {
@@ -508,7 +578,7 @@ function readText(form: HTMLFormElement, name: string): string {
   return input instanceof HTMLInputElement ? input.value : "";
 }
 
-function renderEmpty(errors: ImportError[]): string {
+function renderEmpty(errors: ImportError[], backupNotice: string, backupError: string): string {
   return `
     <div class="shell">
       ${renderHeader()}
@@ -520,6 +590,7 @@ function renderEmpty(errors: ImportError[]): string {
         </div>
         ${renderImportForm(errors)}
       </section>
+      ${renderBackupManager(false, backupNotice, backupError)}
     </div>
   `;
 }
@@ -538,6 +609,11 @@ function renderCatalog(
   return `
     <div class="shell shell-wide">
       ${renderHeader(true)}
+      ${renderBackupManager(
+        true,
+        operationTarget === "backup" ? notice : "",
+        operationTarget === "backup" ? operationError : "",
+      )}
       <section class="catalog-heading">
         <div>
           <p class="eyebrow">Catalogo pronto</p>
@@ -726,6 +802,11 @@ function renderActiveAuction(
     return `
       <div class="shell shell-wide">
         ${renderActiveHeader(state, auction, viewState)}
+        ${renderBackupManager(
+          true,
+          operationTarget === "backup" ? notice : "",
+          operationTarget === "backup" ? operationError : "",
+        )}
         ${viewState.activeView === "my-team"
           ? renderMyRoster(state, auction)
           : renderOpponentTeams(state, auction)}
@@ -735,6 +816,11 @@ function renderActiveAuction(
   return `
     <div class="shell shell-wide">
       ${renderActiveHeader(state, auction, viewState)}
+      ${renderBackupManager(
+        true,
+        operationTarget === "backup" ? notice : "",
+        operationTarget === "backup" ? operationError : "",
+      )}
       <section class="active-heading">
         <p class="eyebrow">${auctionComplete ? "Sessione completata" : "Sessione in corso"}</p>
         <h1>Asta</h1>

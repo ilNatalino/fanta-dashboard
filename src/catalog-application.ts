@@ -124,6 +124,16 @@ export type ResetAuctionResult =
   | { status: "confirmation-required" }
   | { status: "invalid"; error: string };
 
+export type ExportBackupResult =
+  | { status: "exported"; filename: string; contents: string }
+  | { status: "unavailable"; error: string };
+
+export type ImportBackupResult =
+  | { status: "confirmation-required" }
+  | { status: "restored" }
+  | { status: "failed"; error: string }
+  | { status: "invalid"; error: string };
+
 export interface StateStorage {
   load(): AppState | null;
   save(state: AppState): void;
@@ -587,6 +597,227 @@ export class CatalogApplication {
     this.#state = nextState;
     return { status: "reset" };
   }
+
+  exportBackup(): ExportBackupResult {
+    if (!this.#state) {
+      return { status: "unavailable", error: "Non esiste ancora uno stato da esportare." };
+    }
+    return {
+      status: "exported",
+      filename: "fanta-dashboard-backup.json",
+      contents: JSON.stringify(this.#state, null, 2),
+    };
+  }
+
+  importBackup(source: string, confirmed = false): ImportBackupResult {
+    const validated = validateBackup(source);
+    if (typeof validated === "string") return { status: "invalid", error: validated };
+    if (!confirmed) return { status: "confirmation-required" };
+
+    try {
+      this.storage.save(validated);
+    } catch {
+      return { status: "failed", error: "Impossibile salvare il Backup locale ripristinato." };
+    }
+    this.#state = validated;
+    return { status: "restored" };
+  }
+}
+
+function validateBackup(source: string): AppState | string {
+  let value: unknown;
+  try {
+    value = JSON.parse(source);
+  } catch {
+    return "Backup locale non valido: il file non contiene JSON leggibile.";
+  }
+  if (!isRecord(value)) return invalidBackup();
+  if (value.version !== 1) {
+    return "Backup locale incompatibile: la versione dello stato non è supportata.";
+  }
+  if (!Array.isArray(value.catalog) || value.catalog.length === 0) return invalidBackup();
+
+  const catalog: Player[] = [];
+  const playerNames = new Map<string, string>();
+  for (const candidate of value.catalog) {
+    const player = readBackupPlayer(candidate);
+    if (!player || playerNames.has(normalizeName(player.name))) return invalidBackup();
+    playerNames.set(normalizeName(player.name), player.name);
+    catalog.push(player);
+  }
+
+  if (!Array.isArray(value.shortlistCategories)) return invalidBackup();
+  const shortlistCategories: ShortlistCategory[] = [];
+  const categoryNames = new Set<string>();
+  for (const candidate of value.shortlistCategories) {
+    if (!isRecord(candidate) || typeof candidate.name !== "string") return invalidBackup();
+    const name = candidate.name.trim();
+    const normalizedCategoryName = normalizeName(name);
+    if (!name || categoryNames.has(normalizedCategoryName) || !Array.isArray(candidate.playerNames)) {
+      return invalidBackup();
+    }
+    categoryNames.add(normalizedCategoryName);
+
+    const categoryPlayerNames: string[] = [];
+    const seenPlayers = new Set<string>();
+    for (const playerName of candidate.playerNames) {
+      if (typeof playerName !== "string") return invalidBackup();
+      const normalizedPlayerName = normalizeName(playerName);
+      const catalogPlayerName = playerNames.get(normalizedPlayerName);
+      if (!catalogPlayerName || seenPlayers.has(normalizedPlayerName)) return invalidBackup();
+      seenPlayers.add(normalizedPlayerName);
+      categoryPlayerNames.push(catalogPlayerName);
+    }
+    shortlistCategories.push({ name, playerNames: categoryPlayerNames });
+  }
+
+  const hasAuctionSetup = value.auctionSetup !== undefined;
+  const hasAuction = value.auction !== undefined;
+  if (hasAuctionSetup && hasAuction) return invalidBackup();
+
+  const state: AppState = { version: 1, catalog, shortlistCategories };
+  if (hasAuctionSetup) {
+    const setup = readBackupAuctionSetup(value.auctionSetup);
+    if (!setup) return invalidBackup();
+    state.auctionSetup = setup;
+  }
+  if (hasAuction) {
+    const auction = readBackupAuction(value.auction, catalog, playerNames);
+    if (!auction) return invalidBackup();
+    state.auction = auction;
+  }
+  return state;
+}
+
+function readBackupPlayer(value: unknown): Player | null {
+  if (!isRecord(value)) return null;
+  const role = value.role;
+  if (
+    typeof value.name !== "string" || !value.name.trim()
+    || typeof value.team !== "string" || !value.team.trim()
+    || typeof role !== "string" || !["P", "D", "C", "A"].includes(role)
+    || !isPositiveInteger(value.slot)
+    || !isFiniteNumber(value.pma) || value.pma < 0
+    || !isFiniteNumber(value.pfc) || value.pfc <= 0
+    || !isFiniteNumber(value.expectedFantamedia)
+    || !isFiniteNumber(value.expectedTitolarita)
+    || value.expectedTitolarita < 0 || value.expectedTitolarita > 100
+  ) return null;
+
+  return {
+    name: value.name.trim(),
+    team: value.team.trim(),
+    role: role as ClassicRole,
+    slot: value.slot,
+    pma: value.pma,
+    pfc: value.pfc,
+    expectedFantamedia: value.expectedFantamedia,
+    expectedTitolarita: value.expectedTitolarita,
+  };
+}
+
+function readBackupAuctionSetup(value: unknown): AuctionSetup | null {
+  if (!isRecord(value)) return null;
+  const configuration = readBackupConfiguration(value.configuration);
+  const teams = configuration ? readBackupTeams(value.teams, configuration.teamCount) : null;
+  return configuration && teams ? { configuration, teams } : null;
+}
+
+function readBackupAuction(
+  value: unknown,
+  catalog: readonly Player[],
+  playerNames: ReadonlyMap<string, string>,
+): ActiveAuction | null {
+  if (!isRecord(value) || !Array.isArray(value.purchases)) return null;
+  const configuration = readBackupConfiguration(value.configuration);
+  const teams = configuration ? readBackupTeams(value.teams, configuration.teamCount) : null;
+  if (!configuration || !teams) return null;
+
+  const auction: ActiveAuction = { configuration, teams, purchases: [] };
+  for (const candidate of value.purchases) {
+    if (
+      !isRecord(candidate)
+      || typeof candidate.playerName !== "string"
+      || typeof candidate.teamId !== "string"
+      || !isPositiveInteger(candidate.finalPrice)
+    ) return null;
+    const playerName = playerNames.get(normalizeName(candidate.playerName));
+    if (!playerName) return null;
+    const validated = validatePurchase(
+      auction,
+      catalog,
+      playerName,
+      candidate.teamId,
+      candidate.finalPrice,
+    );
+    if (typeof validated === "string") return null;
+    auction.purchases.push({
+      playerName: validated.player.name,
+      teamId: validated.team.id,
+      finalPrice: candidate.finalPrice,
+    });
+  }
+  return auction;
+}
+
+function readBackupConfiguration(value: unknown): AuctionConfiguration | null {
+  if (!isRecord(value) || !isRecord(value.rosterSlots)) return null;
+  const slots = value.rosterSlots;
+  if (
+    !isPositiveInteger(value.teamCount) || value.teamCount < 2
+    || !isPositiveInteger(value.initialBudget)
+    || !isPositiveInteger(slots.P)
+    || !isPositiveInteger(slots.D)
+    || !isPositiveInteger(slots.C)
+    || !isPositiveInteger(slots.A)
+    || !isPositiveInteger(value.adaptationThreshold)
+    || !isFiniteNumber(value.historicalMarketPerceptionTolerance)
+    || value.historicalMarketPerceptionTolerance < 0
+  ) return null;
+
+  return {
+    teamCount: value.teamCount,
+    initialBudget: value.initialBudget,
+    rosterSlots: { P: slots.P, D: slots.D, C: slots.C, A: slots.A },
+    adaptationThreshold: value.adaptationThreshold,
+    historicalMarketPerceptionTolerance: value.historicalMarketPerceptionTolerance,
+  };
+}
+
+function readBackupTeams(value: unknown, teamCount: number): Team[] | null {
+  if (!Array.isArray(value) || value.length !== teamCount) return null;
+  const teams: Team[] = [];
+  const ids = new Set<string>();
+  let mainTeams = 0;
+  for (const candidate of value) {
+    if (
+      !isRecord(candidate)
+      || typeof candidate.id !== "string" || !candidate.id.trim()
+      || typeof candidate.name !== "string" || !candidate.name.trim()
+      || typeof candidate.isMain !== "boolean"
+      || ids.has(candidate.id)
+    ) return null;
+    ids.add(candidate.id);
+    if (candidate.isMain) mainTeams += 1;
+    teams.push({ id: candidate.id, name: candidate.name.trim(), isMain: candidate.isMain });
+  }
+  return mainTeams === 1 ? teams : null;
+}
+
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return typeof value === "object" && value !== null && !Array.isArray(value);
+}
+
+function isFiniteNumber(value: unknown): value is number {
+  return typeof value === "number" && Number.isFinite(value);
+}
+
+function isPositiveInteger(value: unknown): value is number {
+  return typeof value === "number" && Number.isInteger(value) && value > 0;
+}
+
+function invalidBackup(): string {
+  return "Backup locale non valido: il file non contiene uno stato completo e coerente.";
 }
 
 function validatePurchase(
