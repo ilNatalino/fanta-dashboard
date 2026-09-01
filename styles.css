@@ -458,6 +458,32 @@ select {
   padding-top: 1rem;
 }
 
+.purchase-panel {
+  display: grid;
+  grid-template-columns: minmax(10rem, 1fr) minmax(8rem, 0.6fr) auto;
+  gap: 0.75rem;
+  align-items: end;
+  margin-top: 1rem;
+  border: 1px solid #506159;
+  border-radius: 0.75rem;
+  padding: 0.85rem;
+  background: #111a15;
+}
+
+.purchase-panel h4,
+.purchase-panel .errors {
+  grid-column: 1 / -1;
+  margin: 0;
+}
+
+.purchase-panel label {
+  display: grid;
+  gap: 0.4rem;
+  color: #dbe3dc;
+  font-size: 0.75rem;
+  font-weight: 700;
+}
+
 .auction-shortlist h4,
 .alternatives h4 {
   margin: 0 0 0.75rem;
@@ -652,6 +678,7 @@ tbody tr:hover {
   .shortlist-manager,
   .create-category,
   .player-search,
+  .purchase-panel,
   .player-facts,
   .setup-fields {
     grid-template-columns: 1fr;

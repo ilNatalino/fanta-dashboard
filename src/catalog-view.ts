@@ -1,5 +1,7 @@
 import {
   CatalogApplication,
+  occupiedTeamRoleSlots,
+  remainingTeamBudget,
   type ActiveAuction,
   type AppState,
   type ClassicRole,
@@ -13,13 +15,16 @@ const numberFormatter = new Intl.NumberFormat("it-IT", {
   maximumFractionDigits: 2,
   useGrouping: true,
 });
-type OperationTarget = "import" | "configuration" | "shortlist";
+type OperationTarget = "import" | "configuration" | "shortlist" | "purchase";
 type RankingSort = "pfc" | "slot" | "pma" | "expectedFantamedia" | "expectedTitolarita";
 type AuctionViewState = {
   selectedPlayerName: string | null;
   selectedRole: ClassicRole;
   rankingSort: RankingSort;
   shortlistCategory: string;
+  assignmentOpen: boolean;
+  assignmentTeamId: string;
+  assignmentPrice: string;
 };
 
 const catalogColumns: Array<{
@@ -43,6 +48,9 @@ export function mountCatalogApp(root: HTMLElement): void {
     selectedRole: "P",
     rankingSort: "pfc",
     shortlistCategory: "",
+    assignmentOpen: false,
+    assignmentTeamId: "",
+    assignmentPrice: "",
   });
 }
 
@@ -53,6 +61,12 @@ function escapeHtml(value: string): string {
     .replaceAll(">", "&gt;")
     .replaceAll('"', "&quot;")
     .replaceAll("'", "&#039;");
+}
+
+function resetAssignmentDraft(viewState: AuctionViewState): void {
+  viewState.assignmentOpen = false;
+  viewState.assignmentTeamId = "";
+  viewState.assignmentPrice = "";
 }
 
 function renderImportForm(errors: ImportError[], compact = false, notice = ""): string {
@@ -268,12 +282,14 @@ function render(
     if (!player) return;
     viewState.selectedPlayerName = player.name;
     viewState.selectedRole = player.role;
+    resetAssignmentDraft(viewState);
     render(root, application, viewState);
   });
 
   root.querySelector<HTMLButtonElement>("[data-close-auction-card]")
     ?.addEventListener("click", () => {
       viewState.selectedPlayerName = null;
+      resetAssignmentDraft(viewState);
       render(root, application, viewState);
     });
 
@@ -299,8 +315,47 @@ function render(
   root.querySelectorAll<HTMLButtonElement>("[data-call-player]").forEach((button) => {
     button.addEventListener("click", () => {
       viewState.selectedPlayerName = button.dataset.callPlayer ?? null;
+      resetAssignmentDraft(viewState);
       render(root, application, viewState);
     });
+  });
+
+  root.querySelector<HTMLButtonElement>("[data-open-purchase]")?.addEventListener("click", () => {
+    resetAssignmentDraft(viewState);
+    viewState.assignmentOpen = true;
+    render(root, application, viewState);
+  });
+
+  const purchaseForm = root.querySelector<HTMLFormElement>("[data-purchase-form]");
+  purchaseForm?.addEventListener("submit", (event) => {
+    event.preventDefault();
+    const teamInput = purchaseForm.elements.namedItem("teamId");
+    const priceInput = purchaseForm.elements.namedItem("finalPrice");
+    viewState.assignmentTeamId = teamInput instanceof HTMLSelectElement ? teamInput.value : "";
+    viewState.assignmentPrice = priceInput instanceof HTMLInputElement ? priceInput.value : "";
+    const playerName = viewState.selectedPlayerName ?? "";
+    const result = application.assignPlayer(
+      playerName,
+      viewState.assignmentTeamId,
+      priceInput instanceof HTMLInputElement ? priceInput.valueAsNumber : Number.NaN,
+    );
+
+    if (result.status === "purchased") {
+      viewState.selectedPlayerName = null;
+      resetAssignmentDraft(viewState);
+      render(
+        root,
+        application,
+        viewState,
+        [],
+        `${playerName} assegnato a ${result.teamName} per ${priceInput instanceof HTMLInputElement ? priceInput.value : ""} crediti. Budget residuo: ${result.remainingBudget} crediti.`,
+        "",
+        "purchase",
+      );
+      return;
+    }
+
+    render(root, application, viewState, [], "", result.error, "purchase");
   });
 }
 
@@ -381,16 +436,28 @@ function renderCatalog(
 }
 
 function renderCatalogTable(state: Readonly<AppState>): string {
+  const showAvailability = Boolean(state.auction);
   return `
     <div class="table-frame">
       <table>
-        <thead><tr>${catalogColumns.map((column) => `<th>${column.label}</th>`).join("")}<th>Shortlist</th></tr></thead>
-        <tbody>${state.catalog.map((player) => `
-          <tr>${catalogColumns.map((column) => column.rowHeader
-            ? `<th scope="row">${column.render(player)}</th>`
-            : `<td>${column.render(player)}</td>`
-          ).join("")}<td>${renderPlayerShortlist(player, state)}</td></tr>
-        `).join("")}</tbody>
+        <thead><tr>${catalogColumns.map((column) => `<th>${column.label}</th>`).join("")}<th>Shortlist</th>${showAvailability ? "<th>Stato</th>" : ""}</tr></thead>
+        <tbody>${state.catalog.map((player) => {
+          const purchase = state.auction?.purchases.find(
+            (candidate) => candidate.playerName === player.name,
+          );
+          const team = purchase
+            ? state.auction?.teams.find((candidate) => candidate.id === purchase.teamId)
+            : undefined;
+          const availability = purchase
+            ? `Acquistato · ${escapeHtml(team?.name ?? "Squadra non disponibile")} · ${purchase.finalPrice} crediti`
+            : "Disponibile";
+          return `
+            <tr>${catalogColumns.map((column) => column.rowHeader
+              ? `<th scope="row">${column.render(player)}</th>`
+              : `<td>${column.render(player)}</td>`
+            ).join("")}<td>${renderPlayerShortlist(player, state)}</td>${showAvailability ? `<td>${availability}</td>` : ""}</tr>
+          `;
+        }).join("")}</tbody>
       </table>
     </div>
   `;
@@ -488,6 +555,9 @@ function renderActiveAuction(
 ): string {
   const configuration = auction.configuration;
   const mainTeam = auction.teams.find((team) => team.isMain)!;
+  const mainTeamPurchases = auction.purchases.filter((purchase) => purchase.teamId === mainTeam.id);
+  const mainTeamBudget = remainingTeamBudget(auction, mainTeam.id);
+  const availableCount = availablePlayers(state).length;
   return `
     <div class="shell shell-wide">
       ${renderHeader(false, true)}
@@ -504,14 +574,24 @@ function renderActiveAuction(
         </section>
         <section class="card" aria-label="Scheda d’asta">
           <h2>Scheda d’asta</h2>
-          ${renderAuctionCard(state, auction, viewState)}
+          ${renderAuctionCard(
+            state,
+            auction,
+            viewState,
+            operationTarget === "purchase" ? notice : "",
+            operationTarget === "purchase" ? operationError : "",
+          )}
         </section>
         <section class="card main-team-summary" aria-label="${escapeHtml(mainTeam.name)}">
           <h2>${escapeHtml(mainTeam.name)}</h2>
-          <p>Budget residuo: ${numberFormatter.format(configuration.initialBudget)} crediti</p>
+          <p>Budget residuo: ${numberFormatter.format(mainTeamBudget)} crediti</p>
           <ul>${Object.entries(roleNames).map(([role, name]) => `
-            <li data-main-team-role>${name} 0/${configuration.rosterSlots[role as ClassicRole]}</li>
+            <li data-main-team-role>${name} ${occupiedTeamRoleSlots(auction, state.catalog, mainTeam.id, role as ClassicRole)}/${configuration.rosterSlots[role as ClassicRole]}</li>
           `).join("")}</ul>
+          <h3>Rosa</h3>
+          ${mainTeamPurchases.length > 0
+            ? `<ul aria-label="Rosa ${escapeHtml(mainTeam.name)}">${mainTeamPurchases.map((purchase) => `<li>${escapeHtml(purchase.playerName)} · ${purchase.finalPrice} crediti</li>`).join("")}</ul>`
+            : "<p>Nessun calciatore acquistato.</p>"}
         </section>
       </div>
       <form class="card auction-setup" id="auction-configuration">
@@ -542,7 +622,7 @@ function renderActiveAuction(
         <div>
           <p class="eyebrow">Preparazione personale</p>
           <h2>Catalogo calciatori</h2>
-          <p class="catalog-count">${state.catalog.length} calciatori disponibili</p>
+          <p class="catalog-count">${availableCount} calciatori disponibili</p>
         </div>
       </section>
       ${renderShortlistManager(
@@ -560,14 +640,15 @@ function renderRankingAndScarcity(
   viewState: AuctionViewState,
 ): string {
   const role = viewState.selectedRole;
-  const allRolePlayers = state.catalog.filter((player) => player.role === role);
+  const catalogRolePlayers = state.catalog.filter((player) => player.role === role);
+  const availableRolePlayers = availablePlayers(state).filter((player) => player.role === role);
   const selectedCategory = state.shortlistCategories.find(
     (category) => category.name === viewState.shortlistCategory,
   );
-  const players = allRolePlayers
+  const players = availableRolePlayers
     .filter((player) => !selectedCategory || selectedCategory.playerNames.includes(player.name))
     .sort((left, right) => compareRankedPlayers(left, right, viewState.rankingSort));
-  const maxSlot = Math.max(0, ...allRolePlayers.map((player) => player.slot));
+  const maxSlot = Math.max(0, ...catalogRolePlayers.map((player) => player.slot));
 
   return `
     <div class="role-tabs" aria-label="Ruolo Classic">${Object.entries(roleNames).map(
@@ -602,7 +683,7 @@ function renderRankingAndScarcity(
       { length: maxSlot },
       (_, index) => {
         const slot = index + 1;
-        return `<li>S${slot} ${allRolePlayers.filter((player) => player.slot === slot).length}</li>`;
+        return `<li>S${slot} ${availableRolePlayers.filter((player) => player.slot === slot).length}</li>`;
       },
     ).join("")}</ul>
   `;
@@ -637,6 +718,8 @@ function renderAuctionCard(
   state: Readonly<AppState>,
   auction: Readonly<ActiveAuction>,
   viewState: AuctionViewState,
+  notice: string,
+  operationError: string,
 ): string {
   const player = state.catalog.find((candidate) => candidate.name === viewState.selectedPlayerName);
   const search = `
@@ -652,7 +735,7 @@ function renderAuctionCard(
     </form>
   `;
   if (!player) {
-    return `${search}<p>Cerca il Calciatore chiamato per aprire la scheda temporanea.</p>`;
+    return `${search}${notice ? `<p class="notice" role="status">${escapeHtml(notice)}</p>` : ""}<p>Cerca il Calciatore chiamato per aprire la scheda temporanea.</p>`;
   }
 
   const historicalMarketDifferencePercent = (player.pma - player.pfc) / player.pfc * 100;
@@ -681,9 +764,37 @@ function renderAuctionCard(
         <div><dt>Fantamedia prevista</dt><dd>${numberFormatter.format(player.expectedFantamedia)}</dd></div>
         <div><dt>Titolarità prevista</dt><dd>${Math.round(player.expectedTitolarita)}%</dd></div>
       </dl>
+      <button type="button" data-open-purchase>Assegna giocatore</button>
+      ${viewState.assignmentOpen ? renderPurchaseForm(auction, viewState, operationError) : ""}
       ${renderAuctionCardShortlist(player, state)}
       ${renderImmediateAlternatives(player, state)}
     </article>
+  `;
+}
+
+function renderPurchaseForm(
+  auction: Readonly<ActiveAuction>,
+  viewState: AuctionViewState,
+  operationError: string,
+): string {
+  return `
+    <form class="purchase-panel" data-purchase-form>
+      <h4>Registra Acquisto</h4>
+      <label>Squadra
+        <select name="teamId" required>
+          <option value="">Seleziona una Squadra</option>
+          ${auction.teams.map((team) => {
+            const mainTeamLabel = team.isMain ? " · Squadra principale" : "";
+            return `<option value="${escapeHtml(team.id)}" ${viewState.assignmentTeamId === team.id ? "selected" : ""}>${escapeHtml(team.name)}${mainTeamLabel} · ${numberFormatter.format(remainingTeamBudget(auction, team.id))} crediti</option>`;
+          }).join("")}
+        </select>
+      </label>
+      <label>Prezzo finale
+        <input name="finalPrice" type="number" min="1" step="1" value="${escapeHtml(viewState.assignmentPrice)}" required />
+      </label>
+      <button type="submit">Registra Acquisto</button>
+      ${operationError ? `<p class="errors" role="alert">${escapeHtml(operationError)}</p>` : ""}
+    </form>
   `;
 }
 
@@ -715,7 +826,7 @@ function renderAuctionCardShortlist(player: Player, state: Readonly<AppState>): 
 }
 
 function renderImmediateAlternatives(player: Player, state: Readonly<AppState>): string {
-  const alternatives = state.catalog
+  const alternatives = availablePlayers(state)
     .filter((candidate) =>
       candidate.name !== player.name
       && candidate.role === player.role
@@ -740,6 +851,11 @@ function renderImmediateAlternatives(player: Player, state: Readonly<AppState>):
         : "<p>Nessun altro disponibile nello stesso Ruolo e Slot.</p>"}
     </section>
   `;
+}
+
+function availablePlayers(state: Readonly<AppState>): Player[] {
+  const purchased = new Set(state.auction?.purchases.map((purchase) => purchase.playerName) ?? []);
+  return state.catalog.filter((player) => !purchased.has(player.name));
 }
 
 function renderHeader(canStartAuction = false, auctionStarted = false): string {

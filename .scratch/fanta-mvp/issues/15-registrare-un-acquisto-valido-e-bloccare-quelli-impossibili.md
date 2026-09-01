@@ -4,14 +4,14 @@
 
 **Blocked by:** 14 — Esplorare il command center dell'Asta.
 
-**Status:** ready-for-agent
+**Status:** done
 
-- [ ] `Assegna giocatore` apre un modulo compatto nel quale Squadra e prezzo finale sono obbligatori.
-- [ ] La Squadra principale può essere evidenziata ma non viene preselezionata.
-- [ ] Un Acquisto valido rende il calciatore non disponibile, lo inserisce nella rosa scelta, riduce il budget e aggiorna ranking e Scarsità per slot in un'unica operazione.
-- [ ] Assegnando `GIOCATORE_D_01` a `Squadra 2` per 157 crediti, il budget della Squadra diventa 843 e la Scheda d'asta si chiude soltanto dopo il salvataggio.
-- [ ] L'app blocca l'Acquisto di un calciatore già acquistato, oltre il budget disponibile o in un Ruolo senza Posti di ruolo liberi.
-- [ ] Un Acquisto invalido non modifica lo stato, mantiene aperto il modulo, conserva i valori inseriti e mostra un errore contestuale.
-- [ ] Il riepilogo fisso della Squadra principale mostra budget residuo, posti occupati e rosa aggiornata senza duplicare analisi dettagliate.
-- [ ] Un refresh dopo un Acquisto confermato ripristina disponibilità, rosa e budget aggiornati.
-- [ ] I controlli automatici verificano sia il percorso valido sia i tre confini di invalidità attraverso l'interfaccia dell'applicazione.
+- [x] `Assegna giocatore` apre un modulo compatto nel quale Squadra e prezzo finale sono obbligatori.
+- [x] La Squadra principale può essere evidenziata ma non viene preselezionata.
+- [x] Un Acquisto valido rende il calciatore non disponibile, lo inserisce nella rosa scelta, riduce il budget e aggiorna ranking e Scarsità per slot in un'unica operazione.
+- [x] Assegnando `GIOCATORE_D_01` a `Squadra 2` per 157 crediti, il budget della Squadra diventa 843 e la Scheda d'asta si chiude soltanto dopo il salvataggio.
+- [x] L'app blocca l'Acquisto di un calciatore già acquistato, oltre il budget disponibile o in un Ruolo senza Posti di ruolo liberi.
+- [x] Un Acquisto invalido non modifica lo stato, mantiene aperto il modulo, conserva i valori inseriti e mostra un errore contestuale.
+- [x] Il riepilogo fisso della Squadra principale mostra budget residuo, posti occupati e rosa aggiornata senza duplicare analisi dettagliate.
+- [x] Un refresh dopo un Acquisto confermato ripristina disponibilità, rosa e budget aggiornati.
+- [x] I controlli automatici verificano sia il percorso valido sia i tre confini di invalidità attraverso l'interfaccia dell'applicazione.

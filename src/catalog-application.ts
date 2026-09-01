@@ -11,6 +11,7 @@ const REQUIRED_FIELDS = [
 
 type RequiredField = (typeof REQUIRED_FIELDS)[number];
 export type ClassicRole = "P" | "D" | "C" | "A";
+const ROLE_NAMES: Record<ClassicRole, string> = { P: "POR", D: "DIF", C: "CEN", A: "ATT" };
 
 export type Player = {
   name: string;
@@ -37,9 +38,16 @@ export type Team = {
   isMain: boolean;
 };
 
+export type Purchase = {
+  playerName: string;
+  teamId: string;
+  finalPrice: number;
+};
+
 export type ActiveAuction = {
   configuration: AuctionConfiguration;
   teams: Team[];
+  purchases: Purchase[];
 };
 
 export type ShortlistCategory = {
@@ -90,9 +98,35 @@ export type ShortlistResult =
   | { status: "confirmation-required"; associatedPlayers: number }
   | { status: "invalid"; error: string };
 
+export type PurchaseResult =
+  | { status: "purchased"; teamName: string; remainingBudget: number }
+  | { status: "invalid"; error: string };
+
 export interface StateStorage {
   load(): AppState | null;
   save(state: AppState): void;
+}
+
+export function remainingTeamBudget(
+  auction: Readonly<ActiveAuction>,
+  teamId: string,
+): number {
+  const spent = auction.purchases
+    .filter((purchase) => purchase.teamId === teamId)
+    .reduce((total, purchase) => total + purchase.finalPrice, 0);
+  return auction.configuration.initialBudget - spent;
+}
+
+export function occupiedTeamRoleSlots(
+  auction: Readonly<ActiveAuction>,
+  catalog: readonly Player[],
+  teamId: string,
+  role: ClassicRole,
+): number {
+  return auction.purchases.filter((purchase) =>
+    purchase.teamId === teamId
+    && catalog.find((player) => player.name === purchase.playerName)?.role === role
+  ).length;
 }
 
 export class CatalogApplication {
@@ -101,7 +135,13 @@ export class CatalogApplication {
   constructor(private readonly storage: StateStorage) {
     const saved = storage.load();
     this.#state = saved
-      ? { ...saved, shortlistCategories: saved.shortlistCategories ?? [] }
+      ? {
+          ...saved,
+          shortlistCategories: saved.shortlistCategories ?? [],
+          auction: saved.auction
+            ? { ...saved.auction, purchases: saved.auction.purchases ?? [] }
+            : undefined,
+        }
       : null;
   }
 
@@ -160,6 +200,7 @@ export class CatalogApplication {
           historicalMarketPerceptionTolerance: input.historicalMarketPerceptionTolerance,
         },
         teams,
+        purchases: [],
       },
     };
 
@@ -328,6 +369,63 @@ export class CatalogApplication {
     this.storage.save(nextState);
     this.#state = nextState;
     return { status: "updated" };
+  }
+
+  assignPlayer(playerName: string, teamId: string, finalPrice: number): PurchaseResult {
+    const state = this.#state;
+    const auction = state?.auction;
+    if (!state || !auction) {
+      return { status: "invalid", error: "Nessuna Asta attiva." };
+    }
+
+    const player = state.catalog.find(
+      (candidate) => normalizeName(candidate.name) === normalizeName(playerName),
+    );
+    if (!player) return { status: "invalid", error: "Calciatore non disponibile." };
+    if (auction.purchases.some(
+      (purchase) => normalizeName(purchase.playerName) === normalizeName(player.name),
+    )) {
+      return { status: "invalid", error: "Il calciatore è già stato acquistato." };
+    }
+
+    const team = auction.teams.find((candidate) => candidate.id === teamId);
+    if (!team) return { status: "invalid", error: "La Squadra è obbligatoria." };
+    if (!Number.isInteger(finalPrice) || finalPrice <= 0) {
+      return { status: "invalid", error: "Il prezzo finale deve essere un intero positivo." };
+    }
+
+    const remainingBudget = remainingTeamBudget(auction, team.id);
+    if (finalPrice > remainingBudget) {
+      return { status: "invalid", error: "Il prezzo finale supera il budget disponibile." };
+    }
+
+    const occupiedRoleSlots = occupiedTeamRoleSlots(
+      auction,
+      state.catalog,
+      team.id,
+      player.role,
+    );
+    if (occupiedRoleSlots >= auction.configuration.rosterSlots[player.role]) {
+      return {
+        status: "invalid",
+        error: `La Squadra non ha Posti di ruolo liberi per ${ROLE_NAMES[player.role]}.`,
+      };
+    }
+
+    const nextState: AppState = {
+      ...state,
+      auction: {
+        ...auction,
+        purchases: [...auction.purchases, { playerName: player.name, teamId: team.id, finalPrice }],
+      },
+    };
+    this.storage.save(nextState);
+    this.#state = nextState;
+    return {
+      status: "purchased",
+      teamName: team.name,
+      remainingBudget: remainingBudget - finalPrice,
+    };
   }
 }
 
