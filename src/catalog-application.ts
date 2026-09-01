@@ -50,6 +50,11 @@ export type ActiveAuction = {
   purchases: Purchase[];
 };
 
+export type AuctionSetup = {
+  configuration: AuctionConfiguration;
+  teams: Team[];
+};
+
 export type ShortlistCategory = {
   name: string;
   playerNames: string[];
@@ -59,6 +64,7 @@ export type AppState = {
   version: 1;
   catalog: Player[];
   shortlistCategories: ShortlistCategory[];
+  auctionSetup?: AuctionSetup;
   auction?: ActiveAuction;
 };
 
@@ -111,6 +117,11 @@ export type CancellationResult =
   | { status: "confirmation-required" }
   | { status: "invalid"; error: string };
 
+export type ResetAuctionResult =
+  | { status: "reset" }
+  | { status: "confirmation-required" }
+  | { status: "invalid"; error: string };
+
 export interface StateStorage {
   load(): AppState | null;
   save(state: AppState): void;
@@ -136,6 +147,17 @@ export function occupiedTeamRoleSlots(
     purchase.teamId === teamId
     && catalog.find((player) => player.name === purchase.playerName)?.role === role
   ).length;
+}
+
+export function isAuctionComplete(
+  auction: Readonly<ActiveAuction>,
+  catalog: readonly Player[],
+): boolean {
+  const roles = Object.keys(ROLE_NAMES) as ClassicRole[];
+  return auction.teams.every((team) => roles.every((role) =>
+    occupiedTeamRoleSlots(auction, catalog, team.id, role)
+      >= auction.configuration.rosterSlots[role]
+  ));
 }
 
 export function maximumSpendable(
@@ -236,6 +258,7 @@ export class CatalogApplication {
     ];
     const nextState: AppState = {
       ...this.#state,
+      auctionSetup: undefined,
       auction: {
         configuration: {
           teamCount: input.teamCount,
@@ -507,6 +530,28 @@ export class CatalogApplication {
     this.storage.save(nextState);
     this.#state = nextState;
     return { status: "cancelled" };
+  }
+
+  resetAuction(confirmed = false): ResetAuctionResult {
+    const state = this.#state;
+    const auction = state?.auction;
+    if (!state || !auction) {
+      return { status: "invalid", error: "Nessuna Asta attiva da resettare." };
+    }
+    if (!confirmed) return { status: "confirmation-required" };
+
+    const nextState: AppState = {
+      version: state.version,
+      catalog: state.catalog,
+      shortlistCategories: state.shortlistCategories,
+      auctionSetup: {
+        configuration: auction.configuration,
+        teams: auction.teams,
+      },
+    };
+    this.storage.save(nextState);
+    this.#state = nextState;
+    return { status: "reset" };
   }
 }
 

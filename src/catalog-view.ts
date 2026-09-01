@@ -1,5 +1,6 @@
 import {
   CatalogApplication,
+  isAuctionComplete,
   maximumSpendable,
   occupiedTeamRoleSlots,
   remainingTeamBudget,
@@ -203,6 +204,31 @@ function render(
       result.status === "invalid" ? result.error : "",
       "configuration",
     );
+  });
+
+  root.querySelector<HTMLButtonElement>("[data-reset-auction]")?.addEventListener("click", () => {
+    let result = application.resetAuction();
+    if (result.status === "confirmation-required") {
+      if (!window.confirm(
+        "Resettare l’Asta ed eliminare tutti gli Acquisti e i progressi? Catalogo, Configurazione d’asta, Squadre e Shortlist saranno conservati.",
+      )) return;
+      result = application.resetAuction(true);
+    }
+    if (result.status === "reset") {
+      viewState.activeView = "auction";
+      viewState.selectedPlayerName = null;
+      viewState.correctionDraft = null;
+      resetAssignmentDraft(viewState);
+      render(
+        root,
+        application,
+        viewState,
+        [],
+        "Asta resettata. Il setup è pronto per un nuovo avvio.",
+        "",
+        "configuration",
+      );
+    }
   });
 
   const categoryForm = root.querySelector<HTMLFormElement>("[data-create-category]");
@@ -496,6 +522,10 @@ function renderCatalog(
   operationError: string,
   operationTarget: OperationTarget,
 ): string {
+  const setup = state.auctionSetup;
+  const configuration = setup?.configuration;
+  const teams = setup?.teams ?? [];
+  const teamCount = configuration?.teamCount ?? 8;
   return `
     <div class="shell shell-wide">
       ${renderHeader(true)}
@@ -515,18 +545,22 @@ function renderCatalog(
           <p class="eyebrow">Passo successivo</p>
           <h2>Configura l’Asta attiva</h2>
           <p>Definisci le regole comuni e assegna un nome alla tua Squadra principale.</p>
+          ${operationTarget === "configuration" && notice ? `<p class="notice" role="status">${escapeHtml(notice)}</p>` : ""}
         </div>
         <div class="setup-fields">
-          <label>Numero di Squadre<input name="teamCount" type="number" min="2" value="8" required /></label>
-          <label>Budget iniziale comune<input name="initialBudget" type="number" min="1" value="1000" required /></label>
-          <label>Posti POR<input name="slotsP" type="number" min="1" value="3" required /></label>
-          <label>Posti DIF<input name="slotsD" type="number" min="1" value="8" required /></label>
-          <label>Posti CEN<input name="slotsC" type="number" min="1" value="8" required /></label>
-          <label>Posti ATT<input name="slotsA" type="number" min="1" value="6" required /></label>
-          <label>Soglia di adattamento<input name="adaptationThreshold" type="number" min="1" value="3" required /></label>
-          <label>Tolleranza della Percezione storica di mercato (%)<input name="historicalMarketPerceptionTolerance" type="number" min="0" value="5" required /></label>
-          <label>Nome della Squadra principale<input name="mainTeamName" required /></label>
-          <div class="opponent-fields" data-opponent-fields>${renderOpponentFields(8)}</div>
+          <label>Numero di Squadre<input name="teamCount" type="number" min="2" value="${teamCount}" required /></label>
+          <label>Budget iniziale comune<input name="initialBudget" type="number" min="1" value="${configuration?.initialBudget ?? 1000}" required /></label>
+          <label>Posti POR<input name="slotsP" type="number" min="1" value="${configuration?.rosterSlots.P ?? 3}" required /></label>
+          <label>Posti DIF<input name="slotsD" type="number" min="1" value="${configuration?.rosterSlots.D ?? 8}" required /></label>
+          <label>Posti CEN<input name="slotsC" type="number" min="1" value="${configuration?.rosterSlots.C ?? 8}" required /></label>
+          <label>Posti ATT<input name="slotsA" type="number" min="1" value="${configuration?.rosterSlots.A ?? 6}" required /></label>
+          <label>Soglia di adattamento<input name="adaptationThreshold" type="number" min="1" value="${configuration?.adaptationThreshold ?? 3}" required /></label>
+          <label>Tolleranza della Percezione storica di mercato (%)<input name="historicalMarketPerceptionTolerance" type="number" min="0" value="${configuration?.historicalMarketPerceptionTolerance ?? 5}" required /></label>
+          <label>Nome della Squadra principale<input name="mainTeamName" value="${escapeHtml(teams.find((team) => team.isMain)?.name ?? "")}" required /></label>
+          <div class="opponent-fields" data-opponent-fields>${renderOpponentFields(
+            teamCount,
+            teams.filter((team) => !team.isMain).map((team) => team.name),
+          )}</div>
         </div>
       </form>
       ${renderShortlistManager(
@@ -677,6 +711,7 @@ function renderActiveAuction(
     ? occupiedTeamRoleSlots(auction, state.catalog, mainTeam.id, selectedPlayer.role)
       >= configuration.rosterSlots[selectedPlayer.role]
     : false;
+  const auctionComplete = isAuctionComplete(auction, state.catalog);
   const availableCount = availablePlayers(state).length;
   if (viewState.activeView !== "auction") {
     return `
@@ -692,10 +727,12 @@ function renderActiveAuction(
     <div class="shell shell-wide">
       ${renderActiveHeader(state, auction, viewState)}
       <section class="active-heading">
-        <p class="eyebrow">Sessione in corso</p>
+        <p class="eyebrow">${auctionComplete ? "Sessione completata" : "Sessione in corso"}</p>
         <h1>Asta</h1>
-        <h2>Asta attiva</h2>
-        <p>Le regole strutturali sono bloccate. I nomi delle Squadre restano modificabili.</p>
+        <h2>${auctionComplete ? "Asta completa" : "Asta attiva"}</h2>
+        <p>${auctionComplete
+          ? "Tutte le Squadre hanno occupato i Posti di ruolo configurati."
+          : "Le regole strutturali sono bloccate. I nomi delle Squadre restano modificabili."}</p>
       </section>
       <div class="auction-command-center">
         <section class="card" aria-label="Ranking e Scarsità">
@@ -734,6 +771,7 @@ function renderActiveAuction(
           <h2>Configurazione d’asta</h2>
           <p>Un’unica sessione locale, senza storico di aste.</p>
           <button type="submit">Salva Configurazione d’asta</button>
+          <button type="button" class="secondary-button" data-reset-auction>Resetta asta</button>
           ${operationTarget === "configuration" && notice ? `<p class="notice" role="status">${escapeHtml(notice)}</p>` : ""}
           ${operationTarget === "configuration" && operationError ? `<p class="errors" role="alert">${escapeHtml(operationError)}</p>` : ""}
         </div>
@@ -1213,7 +1251,7 @@ function renderActiveHeader(
         <span>${numberFormatter.format(remainingTeamBudget(auction, mainTeam.id))} crediti residui</span>
         <span>${occupiedSlots}/${totalSlots} posti</span>
       </div>
-      <button type="button" disabled>Asta avviata</button>
+      <button type="button" disabled>${isAuctionComplete(auction, state.catalog) ? "Asta completa" : "Asta avviata"}</button>
     </header>
   `;
 }
