@@ -9,8 +9,18 @@ import {
 import { BrowserStateStorage } from "./browser-storage.js";
 
 const roleNames: Record<ClassicRole, string> = { P: "POR", D: "DIF", C: "CEN", A: "ATT" };
-const numberFormatter = new Intl.NumberFormat("it-IT", { maximumFractionDigits: 2 });
+const numberFormatter = new Intl.NumberFormat("it-IT", {
+  maximumFractionDigits: 2,
+  useGrouping: true,
+});
 type OperationTarget = "import" | "configuration" | "shortlist";
+type RankingSort = "pfc" | "slot" | "pma" | "expectedFantamedia" | "expectedTitolarita";
+type AuctionViewState = {
+  selectedPlayerName: string | null;
+  selectedRole: ClassicRole;
+  rankingSort: RankingSort;
+  shortlistCategory: string;
+};
 
 const catalogColumns: Array<{
   label: string;
@@ -28,7 +38,12 @@ const catalogColumns: Array<{
 ];
 
 export function mountCatalogApp(root: HTMLElement): void {
-  render(root, new CatalogApplication(new BrowserStateStorage()));
+  render(root, new CatalogApplication(new BrowserStateStorage()), {
+    selectedPlayerName: null,
+    selectedRole: "P",
+    rankingSort: "pfc",
+    shortlistCategory: "",
+  });
 }
 
 function escapeHtml(value: string): string {
@@ -67,6 +82,7 @@ function renderImportForm(errors: ImportError[], compact = false, notice = ""): 
 function render(
   root: HTMLElement,
   application: CatalogApplication,
+  viewState: AuctionViewState,
   errors: ImportError[] = [],
   notice = "",
   operationError = "",
@@ -75,7 +91,14 @@ function render(
   const state = application.observe();
   root.innerHTML = state
     ? state.auction
-      ? renderActiveAuction(state, state.auction, notice, operationError, operationTarget)
+      ? renderActiveAuction(
+          state,
+          state.auction,
+          viewState,
+          notice,
+          operationError,
+          operationTarget,
+        )
       : renderCatalog(state, errors, notice, operationError, operationTarget)
     : renderEmpty(errors);
 
@@ -89,6 +112,7 @@ function render(
     render(
       root,
       application,
+      viewState,
       result.status === "invalid" ? result.errors : [],
       result.status === "checked" ? "CSV valido. Il Catalogo corrente non è stato modificato." : "",
     );
@@ -115,7 +139,7 @@ function render(
       opponentTeamNames: Array.from(setupForm.querySelectorAll<HTMLInputElement>("[data-opponent-name]"))
         .map((input) => input.value),
     });
-    if (result.status === "started") render(root, application);
+    if (result.status === "started") render(root, application, viewState);
   });
 
   const teamCountInput = setupForm?.elements.namedItem("teamCount");
@@ -149,6 +173,7 @@ function render(
     render(
       root,
       application,
+      viewState,
       [],
       result.status === "updated" ? "Configurazione d’asta salvata." : "",
       result.status === "invalid" ? result.error : "",
@@ -163,6 +188,7 @@ function render(
     render(
       root,
       application,
+      viewState,
       [],
       result.status === "updated" ? "Categoria creata." : "",
       result.status === "invalid" ? result.error : "",
@@ -180,6 +206,7 @@ function render(
       render(
         root,
         application,
+        viewState,
         [],
         "",
         result.status === "invalid" ? result.error : "",
@@ -198,6 +225,7 @@ function render(
       render(
         root,
         application,
+        viewState,
         [],
         result.status === "updated" ? "Categoria rinominata." : "",
         result.status === "invalid" ? result.error : "",
@@ -221,11 +249,57 @@ function render(
       render(
         root,
         application,
+        viewState,
         [],
         result.status === "updated" ? "Categoria eliminata." : "",
         result.status === "invalid" ? result.error : "",
         "shortlist",
       );
+    });
+  });
+
+  const playerSearch = root.querySelector<HTMLFormElement>("[data-player-search]");
+  playerSearch?.addEventListener("submit", (event) => {
+    event.preventDefault();
+    const query = readText(playerSearch, "playerName").trim().toLocaleLowerCase("it-IT");
+    const player = state?.catalog.find(
+      (candidate) => candidate.name.toLocaleLowerCase("it-IT") === query,
+    );
+    if (!player) return;
+    viewState.selectedPlayerName = player.name;
+    viewState.selectedRole = player.role;
+    render(root, application, viewState);
+  });
+
+  root.querySelector<HTMLButtonElement>("[data-close-auction-card]")
+    ?.addEventListener("click", () => {
+      viewState.selectedPlayerName = null;
+      render(root, application, viewState);
+    });
+
+  root.querySelectorAll<HTMLButtonElement>("[data-select-role]").forEach((button) => {
+    button.addEventListener("click", () => {
+      viewState.selectedRole = button.dataset.selectRole as ClassicRole;
+      render(root, application, viewState);
+    });
+  });
+
+  root.querySelector<HTMLSelectElement>("[data-ranking-sort]")
+    ?.addEventListener("change", (event) => {
+      viewState.rankingSort = (event.currentTarget as HTMLSelectElement).value as RankingSort;
+      render(root, application, viewState);
+    });
+
+  root.querySelector<HTMLSelectElement>("[data-shortlist-filter]")
+    ?.addEventListener("change", (event) => {
+      viewState.shortlistCategory = (event.currentTarget as HTMLSelectElement).value;
+      render(root, application, viewState);
+    });
+
+  root.querySelectorAll<HTMLButtonElement>("[data-call-player]").forEach((button) => {
+    button.addEventListener("click", () => {
+      viewState.selectedPlayerName = button.dataset.callPlayer ?? null;
+      render(root, application, viewState);
     });
   });
 }
@@ -407,19 +481,39 @@ function renderOpponentFields(teamCount: number, names: string[] = []): string {
 function renderActiveAuction(
   state: Readonly<AppState>,
   auction: Readonly<ActiveAuction>,
+  viewState: AuctionViewState,
   notice: string,
   operationError: string,
   operationTarget: OperationTarget,
 ): string {
   const configuration = auction.configuration;
+  const mainTeam = auction.teams.find((team) => team.isMain)!;
   return `
     <div class="shell shell-wide">
       ${renderHeader(false, true)}
       <section class="active-heading">
         <p class="eyebrow">Sessione in corso</p>
-        <h1>Asta attiva</h1>
+        <h1>Asta</h1>
+        <h2>Asta attiva</h2>
         <p>Le regole strutturali sono bloccate. I nomi delle Squadre restano modificabili.</p>
       </section>
+      <div class="auction-command-center">
+        <section class="card" aria-label="Ranking e Scarsità">
+          <h2>Ranking e Scarsità</h2>
+          ${renderRankingAndScarcity(state, viewState)}
+        </section>
+        <section class="card" aria-label="Scheda d’asta">
+          <h2>Scheda d’asta</h2>
+          ${renderAuctionCard(state, auction, viewState)}
+        </section>
+        <section class="card main-team-summary" aria-label="${escapeHtml(mainTeam.name)}">
+          <h2>${escapeHtml(mainTeam.name)}</h2>
+          <p>Budget residuo: ${numberFormatter.format(configuration.initialBudget)} crediti</p>
+          <ul>${Object.entries(roleNames).map(([role, name]) => `
+            <li data-main-team-role>${name} 0/${configuration.rosterSlots[role as ClassicRole]}</li>
+          `).join("")}</ul>
+        </section>
+      </div>
       <form class="card auction-setup" id="auction-configuration">
         <div>
           <h2>Configurazione d’asta</h2>
@@ -458,6 +552,193 @@ function renderActiveAuction(
       )}
       ${renderCatalogTable(state)}
     </div>
+  `;
+}
+
+function renderRankingAndScarcity(
+  state: Readonly<AppState>,
+  viewState: AuctionViewState,
+): string {
+  const role = viewState.selectedRole;
+  const allRolePlayers = state.catalog.filter((player) => player.role === role);
+  const selectedCategory = state.shortlistCategories.find(
+    (category) => category.name === viewState.shortlistCategory,
+  );
+  const players = allRolePlayers
+    .filter((player) => !selectedCategory || selectedCategory.playerNames.includes(player.name))
+    .sort((left, right) => compareRankedPlayers(left, right, viewState.rankingSort));
+  const maxSlot = Math.max(0, ...allRolePlayers.map((player) => player.slot));
+
+  return `
+    <div class="role-tabs" aria-label="Ruolo Classic">${Object.entries(roleNames).map(
+      ([value, label]) => `<button
+        type="button"
+        data-select-role="${value}"
+        aria-pressed="${role === value}"
+      >${label}</button>`,
+    ).join("")}</div>
+    <label class="ranking-sort">Ordina ranking
+      <select data-ranking-sort>
+        <option value="pfc" ${viewState.rankingSort === "pfc" ? "selected" : ""}>PFC decrescente</option>
+        <option value="slot" ${viewState.rankingSort === "slot" ? "selected" : ""}>Slot crescente</option>
+        <option value="pma" ${viewState.rankingSort === "pma" ? "selected" : ""}>PMA decrescente</option>
+        <option value="expectedFantamedia" ${viewState.rankingSort === "expectedFantamedia" ? "selected" : ""}>Fantamedia decrescente</option>
+        <option value="expectedTitolarita" ${viewState.rankingSort === "expectedTitolarita" ? "selected" : ""}>Titolarità decrescente</option>
+      </select>
+    </label>
+    <label class="ranking-sort">Filtra per categoria
+      <select data-shortlist-filter>
+        <option value="">Tutti i disponibili</option>
+        ${state.shortlistCategories.map((category) => `
+          <option value="${escapeHtml(category.name)}" ${selectedCategory === category ? "selected" : ""}>${escapeHtml(category.name)}</option>
+        `).join("")}
+      </select>
+    </label>
+    <ol class="ranking-list" aria-label="Ranking ${roleNames[role]}">${players.map((player) =>
+      `<li><button type="button" data-call-player="${escapeHtml(player.name)}">${escapeHtml(player.name)} · ${renderRankingValue(player, viewState.rankingSort)}</button></li>`,
+    ).join("")}</ol>
+    <h3>Scarsità per slot</h3>
+    <ul class="scarcity-list" aria-label="Scarsità ${roleNames[role]}">${Array.from(
+      { length: maxSlot },
+      (_, index) => {
+        const slot = index + 1;
+        return `<li>S${slot} ${allRolePlayers.filter((player) => player.slot === slot).length}</li>`;
+      },
+    ).join("")}</ul>
+  `;
+}
+
+function compareRankedPlayers(left: Player, right: Player, sort: RankingSort): number {
+  if (sort === "pfc") return compareByPfcThenName(left, right);
+  const difference = sort === "slot"
+    ? left.slot - right.slot
+    : right[sort] - left[sort];
+  return difference || left.name.localeCompare(right.name, "it-IT");
+}
+
+function compareByPfcThenName(left: Player, right: Player): number {
+  return right.pfc - left.pfc || left.name.localeCompare(right.name, "it-IT");
+}
+
+function renderRankingValue(player: Player, sort: RankingSort): string {
+  const labels: Record<RankingSort, string> = {
+    pfc: "PFC",
+    slot: "Slot",
+    pma: "PMA",
+    expectedFantamedia: "Fantamedia",
+    expectedTitolarita: "Titolarità",
+  };
+  const suffix = sort === "expectedTitolarita" ? "%" : "";
+  const value = sort === "expectedFantamedia" ? player[sort] : Math.round(player[sort]);
+  return `${labels[sort]} ${numberFormatter.format(value)}${suffix}`;
+}
+
+function renderAuctionCard(
+  state: Readonly<AppState>,
+  auction: Readonly<ActiveAuction>,
+  viewState: AuctionViewState,
+): string {
+  const player = state.catalog.find((candidate) => candidate.name === viewState.selectedPlayerName);
+  const search = `
+    <form class="player-search" data-player-search>
+      <label>
+        Cerca il Calciatore chiamato
+        <input name="playerName" list="player-names" value="${escapeHtml(player?.name ?? "")}" required />
+      </label>
+      <datalist id="player-names">${state.catalog.map(
+        (candidate) => `<option value="${escapeHtml(candidate.name)}"></option>`,
+      ).join("")}</datalist>
+      <button type="submit">Apri Scheda d’asta</button>
+    </form>
+  `;
+  if (!player) {
+    return `${search}<p>Cerca il Calciatore chiamato per aprire la scheda temporanea.</p>`;
+  }
+
+  const historicalMarketDifferencePercent = (player.pma - player.pfc) / player.pfc * 100;
+  const tolerance = auction.configuration.historicalMarketPerceptionTolerance;
+  const perception = historicalMarketDifferencePercent > tolerance
+    ? "In hype"
+    : historicalMarketDifferencePercent < -tolerance
+      ? "Sottovalutato"
+      : "In linea";
+  const signedHistoricalMarketDifference = `${historicalMarketDifferencePercent > 0 ? "+" : ""}${Math.round(historicalMarketDifferencePercent)}%`;
+
+  return `
+    ${search}
+    <article class="auction-card">
+      <div class="auction-card-heading">
+        <div>
+          <h3>${escapeHtml(player.name)}</h3>
+          <p>${escapeHtml(player.team)} · ${roleNames[player.role]} · Slot ${player.slot}</p>
+        </div>
+        <button type="button" class="secondary-button" data-close-auction-card>Chiudi Scheda d’asta</button>
+      </div>
+      <dl class="player-facts">
+        <div><dt>PMA</dt><dd>${numberFormatter.format(Math.round(player.pma))}</dd></div>
+        <div><dt>PFC</dt><dd>${numberFormatter.format(Math.round(player.pfc))}</dd></div>
+        <div><dt>Percezione storica di mercato</dt><dd>${perception} · ${signedHistoricalMarketDifference}</dd></div>
+        <div><dt>Fantamedia prevista</dt><dd>${numberFormatter.format(player.expectedFantamedia)}</dd></div>
+        <div><dt>Titolarità prevista</dt><dd>${Math.round(player.expectedTitolarita)}%</dd></div>
+      </dl>
+      ${renderAuctionCardShortlist(player, state)}
+      ${renderImmediateAlternatives(player, state)}
+    </article>
+  `;
+}
+
+function renderAuctionCardShortlist(player: Player, state: Readonly<AppState>): string {
+  if (state.shortlistCategories.length === 0) {
+    return "<p>Crea una categoria della Shortlist per organizzare questo calciatore.</p>";
+  }
+  const isShortlisted = state.shortlistCategories.some(
+    (category) => category.playerNames.includes(player.name),
+  );
+  return `
+    <section class="auction-shortlist" aria-labelledby="auction-shortlist-title">
+      <h4 id="auction-shortlist-title">Shortlist</h4>
+      ${isShortlisted ? '<span class="shortlist-status">In Shortlist</span>' : ""}
+      <div>${state.shortlistCategories.map((category) => `
+        <label>
+          <input
+            type="checkbox"
+            data-shortlist-association
+            data-player-name="${escapeHtml(player.name)}"
+            data-category-name="${escapeHtml(category.name)}"
+            ${category.playerNames.includes(player.name) ? "checked" : ""}
+          />
+          ${escapeHtml(category.name)}
+        </label>
+      `).join("")}</div>
+    </section>
+  `;
+}
+
+function renderImmediateAlternatives(player: Player, state: Readonly<AppState>): string {
+  const alternatives = state.catalog
+    .filter((candidate) =>
+      candidate.name !== player.name
+      && candidate.role === player.role
+      && candidate.slot === player.slot
+    )
+    .sort(compareByPfcThenName)
+    .slice(0, 3);
+
+  return `
+    <section class="alternatives" aria-labelledby="alternatives-title">
+      <h4 id="alternatives-title">Alternative immediate</h4>
+      ${alternatives.length > 0
+        ? `<ul aria-label="Alternative immediate">${alternatives.map((alternative) => {
+            const categories = state.shortlistCategories
+              .filter((category) => category.playerNames.includes(alternative.name))
+              .map((category) => category.name);
+            const shortlist = categories.length > 0
+              ? ` · ${categories.map(escapeHtml).join(" · ")}`
+              : "";
+            return `<li>${escapeHtml(alternative.name)} · ${escapeHtml(alternative.team)} · PFC ${numberFormatter.format(Math.round(alternative.pfc))}${shortlist}</li>`;
+          }).join("")}</ul>`
+        : "<p>Nessun altro disponibile nello stesso Ruolo e Slot.</p>"}
+    </section>
   `;
 }
 
