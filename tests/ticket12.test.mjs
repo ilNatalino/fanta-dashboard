@@ -28,6 +28,9 @@ async function importRepresentativeCatalog(page) {
   );
   await page.getByRole("button", { name: "Importa catalogo" }).click();
   await page.getByText("32 calciatori disponibili").waitFor({ state: "visible" });
+  await page.getByRole("navigation", { name: "Navigazione primaria" })
+    .getByRole("link", { name: "Asta" })
+    .click();
 }
 
 test("il Catalogo disponibile espone la configurazione rappresentativa e richiede la Squadra principale", async () => {
@@ -125,6 +128,7 @@ test("dopo l'avvio i nomi delle Squadre, la Soglia di adattamento e la tolleranz
   await page.getByLabel("Nome della Squadra principale").fill("I Falchi");
   await page.getByRole("button", { name: "Avvia asta" }).click();
 
+  await page.locator("summary").filter({ hasText: "Configurazione d’asta" }).click();
   await page.getByLabel("Nome della Squadra principale").fill("Le Aquile");
   await page.getByLabel("Squadra avversaria 2").fill("I Rivali");
   await page.getByLabel("Soglia di adattamento").fill("4");

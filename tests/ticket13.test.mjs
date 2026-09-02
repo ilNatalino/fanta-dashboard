@@ -24,6 +24,7 @@ async function openCatalog() {
   );
   await page.getByRole("button", { name: "Importa catalogo" }).click();
   await page.getByText("32 calciatori disponibili").waitFor({ state: "visible" });
+  await page.locator("summary").filter({ hasText: "Gestisci Shortlist" }).click();
   return page;
 }
 
@@ -126,18 +127,29 @@ test("categorie e associazioni persistono senza cambiare l'ordine PFC, anche dur
   await page.getByLabel("GIOCATORE_C_02 · Osservati").check();
 
   await page.reload();
+  await page.locator("summary").filter({ hasText: "Gestisci Shortlist" }).click();
   assert.equal(await page.getByRole("heading", { name: "Osservati" }).isVisible(), true);
   assert.equal(await page.getByLabel("GIOCATORE_D_01 · Osservati").isChecked(), true);
   assert.equal(await page.getByLabel("GIOCATORE_C_02 · Osservati").isChecked(), true);
   assert.deepEqual(await page.getByRole("rowheader").allTextContents(), initialOrder);
 
+  await page.getByRole("navigation", { name: "Navigazione primaria" })
+    .getByRole("link", { name: "Asta" })
+    .click();
   await page.getByLabel("Nome della Squadra principale").fill("I Falchi");
   await page.getByRole("button", { name: "Avvia asta" }).click();
+  await page.getByRole("navigation", { name: "Navigazione primaria" })
+    .getByRole("link", { name: "Catalogo" })
+    .click();
+  await page.locator("summary").filter({ hasText: "Gestisci Shortlist" }).click();
   assert.equal(await page.getByRole("heading", { name: "Shortlist" }).count(), 1);
 
   await createCategory(page, "Portieri");
   await page.getByLabel("GIOCATORE_P_01 · Portieri").check();
   await page.reload();
+  await page.getByRole("navigation", { name: "Navigazione primaria" })
+    .getByRole("link", { name: "Catalogo" })
+    .click();
   assert.equal(await page.getByLabel("GIOCATORE_P_01 · Portieri").isChecked(), true);
 
   await page.close();

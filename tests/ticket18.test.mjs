@@ -24,6 +24,9 @@ async function openActiveAuction() {
   );
   await page.getByRole("button", { name: "Importa catalogo" }).click();
   await page.getByText("32 calciatori disponibili").waitFor({ state: "visible" });
+  await page.getByRole("navigation", { name: "Navigazione primaria" })
+    .getByRole("link", { name: "Asta" })
+    .click();
   await page.getByLabel("Numero di Squadre").fill("4");
   await page.getByLabel("Nome della Squadra principale").fill("I Falchi");
   await page.getByRole("button", { name: "Avvia asta" }).click();
@@ -48,7 +51,7 @@ test("la navigazione primaria apre le tre viste e mantiene ricerca e riepilogo n
 
   assert.deepEqual(
     await navigation.getByRole("link").allTextContents(),
-    ["Asta", "La mia rosa", "Squadre"],
+    ["Asta", "La mia rosa", "Squadre", "Catalogo", "Backup"],
   );
   assert.equal(await navigation.getByRole("link", { name: "Asta" }).getAttribute("aria-current"), "page");
   assert.equal(await header.getByLabel("Cerca il Calciatore chiamato").isVisible(), true);

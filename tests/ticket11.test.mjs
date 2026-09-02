@@ -82,7 +82,7 @@ test("colonne obbligatorie mancanti o duplicate rifiutano l'intero file", async 
 test("tutti gli errori di riga sono mostrati e il Catalogo valido precedente resta invariato", async () => {
   const page = await openPage();
   await importRepresentativeCatalog(page);
-  await page.locator("summary").click();
+  await page.locator("summary").filter({ hasText: "Sostituisci Catalogo calciatori" }).click();
 
   const csv = [
     "name,team,role,slot,pma,pfc,expectedFantamedia,expectedTitolarita,extra",
@@ -115,7 +115,7 @@ test("tutti gli errori di riga sono mostrati e il Catalogo valido precedente res
 test("un secondo CSV valido richiede conferma prima di sostituire il Catalogo", async () => {
   const page = await openPage();
   await importRepresentativeCatalog(page);
-  await page.locator("summary").click();
+  await page.locator("summary").filter({ hasText: "Sostituisci Catalogo calciatori" }).click();
   const csv = [
     "name,team,role,slot,pma,pfc,expectedFantamedia,expectedTitolarita,extra",
     ' NUOVO , CLUB_01 ,P," 1 "," 0 "," 2,3 "," 6,25 "," 92 ",ignorata',

@@ -28,11 +28,16 @@ async function openCatalog() {
 }
 
 async function createCategory(page, name) {
+  const panel = page.locator("details").filter({ hasText: "Gestisci Shortlist" });
+  if (await panel.getAttribute("open") === null) await panel.locator("summary").click();
   await page.getByLabel("Nuova categoria").fill(name);
   await page.getByRole("button", { name: "Crea categoria" }).click();
 }
 
 async function startAuction(page) {
+  await page.getByRole("navigation", { name: "Navigazione primaria" })
+    .getByRole("link", { name: "Asta" })
+    .click();
   await page.getByLabel("Numero di Squadre").fill("2");
   await page.getByLabel("Budget iniziale comune").fill("500");
   await page.getByLabel("Posti DIF").fill("3");
@@ -42,6 +47,10 @@ async function startAuction(page) {
 }
 
 async function resetAuction(page) {
+  await page.getByRole("navigation", { name: "Navigazione primaria" })
+    .getByRole("link", { name: "Asta" })
+    .click();
+  await page.locator("summary").filter({ hasText: "Configurazione d’asta" }).click();
   page.once("dialog", (dialog) => dialog.accept());
   await page.getByRole("button", { name: "Resetta asta" }).click();
   await page.getByRole("heading", { name: "Configura l’Asta attiva" }).waitFor();
@@ -56,6 +65,9 @@ function updatedCatalogCsv() {
 }
 
 async function selectReplacement(page, csv = updatedCatalogCsv()) {
+  await page.getByRole("navigation", { name: "Navigazione primaria" })
+    .getByRole("link", { name: "Catalogo" })
+    .click();
   await page.locator("summary").filter({ hasText: "Sostituisci Catalogo calciatori" }).click();
   await page.getByLabel("Seleziona CSV").setInputFiles({
     name: "catalogo-aggiornato.csv",
@@ -67,6 +79,9 @@ async function selectReplacement(page, csv = updatedCatalogCsv()) {
 test("durante l'Asta la sostituzione del Catalogo è bloccata fino al Reset", async () => {
   const page = await openCatalog();
   await startAuction(page);
+  await page.getByRole("navigation", { name: "Navigazione primaria" })
+    .getByRole("link", { name: "Catalogo" })
+    .click();
 
   assert.equal(
     await page.getByText("Per sostituire il Catalogo calciatori devi prima eseguire il Reset dell’asta.").isVisible(),
@@ -108,10 +123,14 @@ test("la conferma riepiloga le perdite e la sostituzione riconcilia la Shortlist
   ]);
 
   assert.equal(await page.getByText("2 calciatori disponibili").isVisible(), true);
+  await page.locator("summary").filter({ hasText: "Gestisci Shortlist" }).click();
   assert.equal(await page.getByRole("heading", { name: "Osservati" }).isVisible(), true);
   assert.equal(await page.getByRole("heading", { name: "Occasioni" }).isVisible(), true);
   assert.equal(await page.getByLabel("giocatore_d_01 · Osservati").isChecked(), true);
   assert.equal(await page.getByText("GIOCATORE_C_02").count(), 0);
+  await page.getByRole("navigation", { name: "Navigazione primaria" })
+    .getByRole("link", { name: "Asta" })
+    .click();
   assert.equal(await page.getByLabel("Numero di Squadre").inputValue(), "2");
   assert.equal(await page.getByLabel("Budget iniziale comune").inputValue(), "500");
   assert.equal(await page.getByLabel("Posti DIF").inputValue(), "3");
@@ -121,6 +140,9 @@ test("la conferma riepiloga le perdite e la sostituzione riconcilia la Shortlist
   await page.reload();
   assert.equal(await page.getByText("2 calciatori disponibili").isVisible(), true);
   assert.equal(await page.getByLabel("giocatore_d_01 · Osservati").isChecked(), true);
+  await page.getByRole("navigation", { name: "Navigazione primaria" })
+    .getByRole("link", { name: "Asta" })
+    .click();
   assert.equal(await page.getByLabel("Budget iniziale comune").inputValue(), "500");
 
   await page.close();

@@ -24,6 +24,9 @@ async function openActiveAuction({ goalkeeperSlots = 3 } = {}) {
   );
   await page.getByRole("button", { name: "Importa catalogo" }).click();
   await page.getByText("32 calciatori disponibili").waitFor({ state: "visible" });
+  await page.getByRole("navigation", { name: "Navigazione primaria" })
+    .getByRole("link", { name: "Asta" })
+    .click();
   await page.getByLabel("Posti POR").fill(String(goalkeeperSlots));
   await page.getByLabel("Nome della Squadra principale").fill("I Falchi");
   await page.getByRole("button", { name: "Avvia asta" }).click();

@@ -24,6 +24,9 @@ async function openActiveAuction({ goalkeeperSlots = 3 } = {}) {
   );
   await page.getByRole("button", { name: "Importa catalogo" }).click();
   await page.getByText("32 calciatori disponibili").waitFor({ state: "visible" });
+  await page.getByRole("navigation", { name: "Navigazione primaria" })
+    .getByRole("link", { name: "Asta" })
+    .click();
   await page.getByLabel("Posti POR").fill(String(goalkeeperSlots));
   await page.getByLabel("Nome della Squadra principale").fill("I Falchi");
   await page.getByRole("button", { name: "Avvia asta" }).click();
@@ -56,11 +59,14 @@ test("un Acquisto valido aggiorna atomicamente disponibilità, budget e inventar
     await card.getByRole("status").innerText(),
     "GIOCATORE_D_01 assegnato a Squadra 2 per 157 crediti. Budget residuo: 843 crediti.",
   );
+  const navigation = page.getByRole("navigation", { name: "Navigazione primaria" });
+  await navigation.getByRole("link", { name: "Catalogo" }).click();
   assert.equal(await page.getByText("31 calciatori disponibili").isVisible(), true);
   assert.match(
     await page.getByRole("row", { name: /GIOCATORE_D_01/ }).innerText(),
     /Acquistato · Squadra 2 · 157 crediti/,
   );
+  await navigation.getByRole("link", { name: "Asta" }).click();
   assert.equal(
     await page.getByRole("list", { name: "Ranking DIF" }).getByText(/GIOCATORE_D_01/).count(),
     0,

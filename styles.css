@@ -85,6 +85,7 @@ button:disabled {
   display: flex;
   align-items: center;
   justify-content: space-between;
+  flex-wrap: wrap;
   gap: 1rem;
   border-bottom: 1px solid #2c3931;
   padding-bottom: 1rem;
@@ -100,12 +101,18 @@ button:disabled {
   gap: 0.4rem;
 }
 
-.primary-navigation a {
+.primary-navigation a,
+.primary-navigation span {
   border-radius: 0.55rem;
   padding: 0.65rem 0.8rem;
   color: #aebbb2;
   font-weight: 750;
   text-decoration: none;
+}
+
+.primary-navigation span[aria-disabled="true"] {
+  color: #657168;
+  cursor: not-allowed;
 }
 
 .primary-navigation a[aria-current="page"] {
@@ -362,6 +369,29 @@ select {
   padding: 3rem 0 1.5rem;
 }
 
+.catalog-heading-actions {
+  display: grid;
+  width: min(30rem, 100%);
+  gap: 0.75rem;
+}
+
+.management-panel summary,
+.auction-configuration-panel summary {
+  cursor: pointer;
+  color: #dbe3dc;
+  font-weight: 750;
+}
+
+.management-panel[open] summary,
+.auction-configuration-panel[open] > summary {
+  margin-bottom: 0.75rem;
+}
+
+.management-panel .card,
+.auction-configuration-panel .card {
+  margin-bottom: 0;
+}
+
 .catalog-heading h1,
 .active-heading h1 {
   max-width: none;
@@ -385,18 +415,21 @@ select {
   margin-bottom: 1.5rem;
 }
 
-.backup-manager {
+.backup-actions {
   display: grid;
-  grid-template-columns: minmax(14rem, 0.55fr) minmax(0, 1.45fr);
-  gap: 2rem;
-  margin-top: 1.5rem;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 1rem;
   margin-bottom: 1.5rem;
 }
 
-.backup-manager form {
+.backup-action {
   display: grid;
   gap: 1rem;
   align-content: start;
+}
+
+.backup-action p {
+  margin-bottom: 0;
 }
 
 .shortlist-manager {
@@ -404,6 +437,10 @@ select {
   grid-template-columns: minmax(14rem, 0.55fr) minmax(0, 1.45fr);
   gap: 2rem;
   margin-bottom: 1.5rem;
+}
+
+.management-panel .shortlist-manager {
+  margin-bottom: 0;
 }
 
 .create-category {
@@ -510,6 +547,11 @@ select {
   gap: 0.75rem;
   align-items: center;
   margin-top: 1rem;
+}
+
+.catalog-heading-actions .catalog-replacement-blocked {
+  display: grid;
+  justify-items: start;
 }
 
 .catalog-replacement-blocked p {
@@ -808,6 +850,22 @@ select {
   font-weight: 700;
 }
 
+.auction-configuration-panel {
+  display: block;
+  margin-bottom: 1.5rem;
+  border: 1px solid #334139;
+  border-radius: 1rem;
+  padding: 1rem 1.25rem;
+  background: rgb(24 34 29 / 88%);
+}
+
+.auction-configuration-panel .auction-setup {
+  border: 0;
+  padding: 0;
+  background: transparent;
+  box-shadow: none;
+}
+
 .replace-panel {
   width: min(24rem, 100%);
 }
@@ -824,10 +882,61 @@ select {
 }
 
 .table-frame {
+  max-height: 65vh;
   overflow: auto;
   border: 1px solid #334139;
   border-radius: 1rem;
   background: #121c17;
+}
+
+.catalog-controls {
+  display: grid;
+  grid-template-columns: minmax(16rem, 1.4fr) repeat(2, minmax(11rem, 1fr));
+  gap: 1rem;
+  margin-bottom: 1rem;
+  box-shadow: none;
+}
+
+.catalog-search,
+.catalog-filter {
+  display: grid;
+  gap: 0.5rem;
+  color: #dbe3dc;
+  font-size: 0.78rem;
+  font-weight: 750;
+}
+
+.filter-options {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.4rem;
+}
+
+.filter-options button {
+  min-height: 2.35rem;
+  padding: 0.5rem 0.7rem;
+  color: #c3cec6;
+  background: #29332d;
+  font-size: 0.78rem;
+}
+
+.filter-options button[aria-pressed="true"] {
+  color: #102117;
+  background: #bff36b;
+}
+
+.catalog-control-summary {
+  display: flex;
+  grid-column: 1 / -1;
+  justify-content: space-between;
+  align-items: center;
+  gap: 1rem;
+  border-top: 1px solid #334139;
+  padding-top: 1rem;
+}
+
+.catalog-control-summary p {
+  margin: 0;
 }
 
 table {
@@ -853,6 +962,33 @@ thead th {
   text-transform: uppercase;
 }
 
+.catalog-sort-button {
+  display: inline-flex;
+  min-height: 0;
+  align-items: center;
+  gap: 0.35rem;
+  border-radius: 0;
+  padding: 0;
+  color: inherit;
+  background: transparent;
+  font: inherit;
+  letter-spacing: inherit;
+  text-transform: inherit;
+}
+
+.catalog-sort-button:hover,
+.catalog-sort-button:focus-visible {
+  color: #f5f4ef;
+}
+
+.sort-indicator[data-direction="ascending"]::before {
+  content: "↑";
+}
+
+.sort-indicator[data-direction="descending"]::before {
+  content: "↓";
+}
+
 tbody th {
   color: #f5f4ef;
   font-size: 0.88rem;
@@ -865,6 +1001,20 @@ tbody td {
 
 tbody tr:hover {
   background: #19261f;
+}
+
+.empty-catalog {
+  padding: 3rem 1rem;
+  text-align: center;
+  white-space: normal;
+}
+
+.empty-catalog p {
+  margin: 0 0 1rem;
+}
+
+.global-notice {
+  margin-bottom: 1rem;
 }
 
 .role {
@@ -940,7 +1090,7 @@ tbody tr:hover {
   }
 
   .auction-setup,
-  .backup-manager,
+  .backup-actions,
   .auction-command-center,
   .active-topbar,
   .roster-columns,
@@ -950,8 +1100,29 @@ tbody tr:hover {
   .player-search,
   .purchase-panel,
   .player-facts,
-  .setup-fields {
+  .setup-fields,
+  .catalog-controls {
     grid-template-columns: 1fr;
+  }
+
+  .topbar,
+  .active-topbar {
+    align-items: stretch;
+  }
+
+  .primary-navigation {
+    flex-wrap: wrap;
+    overflow-x: visible;
+  }
+
+  .primary-navigation a,
+  .primary-navigation span {
+    flex: 0 0 auto;
+    white-space: nowrap;
+  }
+
+  .catalog-control-summary {
+    display: grid;
   }
 
   .replace-panel summary {

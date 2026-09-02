@@ -29,6 +29,9 @@ async function openCatalog() {
 
 async function openSmallAuction() {
   const page = await openCatalog();
+  await page.getByRole("navigation", { name: "Navigazione primaria" })
+    .getByRole("link", { name: "Asta" })
+    .click();
   await page.getByLabel("Numero di Squadre").fill("2");
   await page.getByLabel("Budget iniziale comune").fill("100");
   for (const role of ["POR", "DIF", "CEN", "ATT"]) {
@@ -95,9 +98,13 @@ test("l'Asta diventa completa naturalmente e le rose finali restano consultabili
 
 test("il Reset dell'asta richiede conferma e conserva setup e Shortlist eliminando i progressi", async () => {
   const page = await openCatalog();
+  await page.locator("summary").filter({ hasText: "Gestisci Shortlist" }).click();
   await page.getByLabel("Nuova categoria").fill("Osservati");
   await page.getByRole("button", { name: "Crea categoria" }).click();
   await page.getByLabel("GIOCATORE_D_01 · Osservati").check();
+  await page.getByRole("navigation", { name: "Navigazione primaria" })
+    .getByRole("link", { name: "Asta" })
+    .click();
   await page.getByLabel("Numero di Squadre").fill("2");
   await page.getByLabel("Budget iniziale comune").fill("500");
   await page.getByLabel("Posti POR").fill("1");
@@ -125,6 +132,7 @@ test("il Reset dell'asta richiede conferma e conserva setup e Shortlist eliminan
     confirmationMessage = dialog.message();
     await dialog.dismiss();
   });
+  await page.locator("summary").filter({ hasText: "Configurazione d’asta" }).click();
   await page.getByRole("button", { name: "Resetta asta" }).click();
   assert.match(confirmationMessage, /eliminare tutti gli Acquisti e i progressi/i);
   assert.equal(await page.getByText("29 calciatori disponibili").isVisible(), true);
@@ -133,7 +141,6 @@ test("il Reset dell'asta richiede conferma e conserva setup e Shortlist eliminan
   await page.getByRole("button", { name: "Resetta asta" }).click();
 
   assert.equal(await page.getByRole("heading", { name: "Configura l’Asta attiva" }).isVisible(), true);
-  assert.equal(await page.getByText("32 calciatori disponibili").isVisible(), true);
   assert.equal(await page.getByLabel("Numero di Squadre").inputValue(), "2");
   assert.equal(await page.getByLabel("Budget iniziale comune").inputValue(), "500");
   assert.deepEqual(
@@ -144,12 +151,19 @@ test("il Reset dell'asta richiede conferma e conserva setup e Shortlist eliminan
   assert.equal(await page.getByLabel("Tolleranza della Percezione storica di mercato (%)").inputValue(), "7");
   assert.equal(await page.getByLabel("Nome della Squadra principale").inputValue(), "I Falchi");
   assert.equal(await page.getByLabel("Squadra avversaria 2").inputValue(), "I Lupi");
+  await page.getByRole("navigation", { name: "Navigazione primaria" })
+    .getByRole("link", { name: "Catalogo" })
+    .click();
+  assert.equal(await page.getByText("32 calciatori disponibili").isVisible(), true);
   assert.equal(await page.getByLabel("GIOCATORE_D_01 · Osservati").isChecked(), true);
 
   await page.reload();
+  assert.equal(await page.getByLabel("GIOCATORE_D_01 · Osservati").isChecked(), true);
+  await page.getByRole("navigation", { name: "Navigazione primaria" })
+    .getByRole("link", { name: "Asta" })
+    .click();
   assert.equal(await page.getByRole("heading", { name: "Configura l’Asta attiva" }).isVisible(), true);
   assert.equal(await page.getByLabel("Budget iniziale comune").inputValue(), "500");
-  assert.equal(await page.getByLabel("GIOCATORE_D_01 · Osservati").isChecked(), true);
 
   await page.getByLabel("Budget iniziale comune").fill("600");
   await page.getByLabel("Posti DIF").fill("3");

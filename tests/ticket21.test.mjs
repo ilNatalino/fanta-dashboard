@@ -30,11 +30,14 @@ async function openCatalog() {
 }
 
 async function createCategory(page, name) {
+  const panel = page.locator("details").filter({ hasText: "Gestisci Shortlist" });
+  if (await panel.getAttribute("open") === null) await panel.locator("summary").click();
   await page.getByLabel("Nuova categoria").fill(name);
   await page.getByRole("button", { name: "Crea categoria" }).click();
 }
 
 async function startAuction(page) {
+  await openView(page, "Asta");
   await page.getByLabel("Numero di Squadre").fill("2");
   await page.getByLabel("Budget iniziale comune").fill("500");
   await page.getByLabel("Posti DIF").fill("3");
@@ -60,6 +63,7 @@ async function openDifferentAuction() {
   await page.getByText("2 calciatori disponibili").waitFor({ state: "visible" });
   await createCategory(page, "Stato corrente");
   await page.getByLabel("CORRENTE_D_01 · Stato corrente").check();
+  await openView(page, "Asta");
   await page.getByLabel("Numero di Squadre").fill("2");
   await page.getByLabel("Budget iniziale comune").fill("300");
   await page.getByLabel("Posti DIF").fill("1");
@@ -82,6 +86,7 @@ async function assignPlayer(page, playerName, teamId, finalPrice) {
 }
 
 async function importBackup(page, contents, acceptConfirmation) {
+  await openView(page, "Backup");
   await page.getByLabel("Seleziona Backup locale").setInputFiles({
     name: "fanta-dashboard-backup.json",
     mimeType: "application/json",
@@ -95,6 +100,12 @@ async function importBackup(page, contents, acceptConfirmation) {
   return message;
 }
 
+async function openView(page, name) {
+  await page.getByRole("navigation", { name: "Navigazione primaria" })
+    .getByRole("link", { name })
+    .click();
+}
+
 test("il Backup locale ripristina atomicamente Catalogo, categorie sovrapposte, Squadre e Acquisti", async () => {
   const sourcePage = await openCatalog();
   await createCategory(sourcePage, "Priorità");
@@ -105,6 +116,7 @@ test("il Backup locale ripristina atomicamente Catalogo, categorie sovrapposte, 
   await assignPlayer(sourcePage, "GIOCATORE_D_01", "main", 157);
   await assignPlayer(sourcePage, "GIOCATORE_D_02", "opponent-2", 55);
 
+  await openView(sourcePage, "Backup");
   const downloadPromise = sourcePage.waitForEvent("download");
   await sourcePage.getByRole("button", { name: "Esporta Backup locale" }).click();
   const download = await downloadPromise;
@@ -129,9 +141,11 @@ test("il Backup locale ripristina atomicamente Catalogo, categorie sovrapposte, 
 
   const dismissedMessage = await importBackup(page, backupContents, false);
   assert.match(dismissedMessage, /sostituire l.intero stato corrente/i);
+  await openView(page, "Asta");
   assert.equal(await page.getByText("1 calciatori disponibili").isVisible(), true);
   assert.equal(await page.getByLabel("Budget iniziale comune").inputValue(), "300");
   assert.equal(await page.getByLabel("Nome della Squadra principale").inputValue(), "Squadra corrente");
+  await openView(page, "Catalogo");
   assert.equal(await page.getByLabel("CORRENTE_D_01 · Stato corrente").isChecked(), true);
   assert.equal(await page.getByText(/Acquistato · Squadra corrente · 10 crediti/).isVisible(), true);
 
@@ -142,6 +156,7 @@ test("il Backup locale ripristina atomicamente Catalogo, categorie sovrapposte, 
   assert.equal(await page.getByLabel("Posti DIF").inputValue(), "3");
   assert.equal(await page.getByLabel("Nome della Squadra principale").inputValue(), "I Falchi");
   assert.equal(await page.getByLabel("Squadra avversaria 2").inputValue(), "I Lupi");
+  await openView(page, "Catalogo");
   assert.equal(await page.getByLabel("GIOCATORE_D_01 · Priorità").isChecked(), true);
   assert.equal(await page.getByLabel("GIOCATORE_D_01 · Occasioni").isChecked(), true);
   assert.equal(await page.getByText(/Acquistato · I Falchi · 157 crediti/).isVisible(), true);
@@ -150,6 +165,7 @@ test("il Backup locale ripristina atomicamente Catalogo, categorie sovrapposte, 
   assert.equal(await page.getByLabel("Budget iniziale comune").inputValue(), "500");
   assert.equal(await page.getByLabel("Posti DIF").inputValue(), "3");
   assert.equal(await page.getByLabel("Nome della Squadra principale").inputValue(), "I Falchi");
+  await openView(page, "Catalogo");
   assert.equal(await page.getByLabel("GIOCATORE_D_01 · Occasioni").isChecked(), true);
   assert.equal(await page.getByText(/Acquistato · I Falchi · 157 crediti/).isVisible(), true);
 
@@ -168,6 +184,7 @@ test("backup invalidi o incompatibili sono rifiutati senza proporre conferma né
     await dialog.dismiss();
   });
 
+  await openView(page, "Backup");
   for (const invalidBackup of [
     JSON.stringify({ version: 2, catalog: [], shortlistCategories: [] }),
     JSON.stringify({
@@ -184,12 +201,15 @@ test("backup invalidi o incompatibili sono rifiutati senza proporre conferma né
     });
     await page.getByRole("button", { name: "Ripristina Backup locale" }).click();
     await page.getByRole("alert").waitFor({ state: "visible" });
+    await openView(page, "Asta");
     assert.equal(await page.getByText("31 calciatori disponibili").isVisible(), true);
     assert.equal(await page.getByLabel("Budget iniziale comune").inputValue(), "500");
     assert.equal(await page.getByLabel("Posti DIF").inputValue(), "3");
     assert.equal(await page.getByLabel("Nome della Squadra principale").inputValue(), "I Falchi");
+    await openView(page, "Catalogo");
     assert.equal(await page.getByLabel("GIOCATORE_C_01 · Da conservare").isChecked(), true);
     assert.equal(await page.getByText(/Acquistato · I Falchi · 157 crediti/).isVisible(), true);
+    await openView(page, "Backup");
   }
 
   assert.equal(confirmationShown, false);
@@ -198,6 +218,7 @@ test("backup invalidi o incompatibili sono rifiutati senza proporre conferma né
   assert.equal(await page.getByLabel("Budget iniziale comune").inputValue(), "500");
   assert.equal(await page.getByLabel("Posti DIF").inputValue(), "3");
   assert.equal(await page.getByLabel("Nome della Squadra principale").inputValue(), "I Falchi");
+  await openView(page, "Catalogo");
   assert.equal(await page.getByLabel("GIOCATORE_C_01 · Da conservare").isChecked(), true);
   assert.equal(await page.getByText(/Acquistato · I Falchi · 157 crediti/).isVisible(), true);
 

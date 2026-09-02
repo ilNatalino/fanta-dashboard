@@ -20,7 +20,10 @@ const numberFormatter = new Intl.NumberFormat("it-IT", {
 });
 type OperationTarget = "import" | "configuration" | "shortlist" | "purchase" | "backup" | "persistence";
 type RankingSort = "pfc" | "slot" | "pma" | "expectedFantamedia" | "expectedTitolarita";
-type ActiveView = "auction" | "my-team" | "teams";
+type ActiveView = "auction" | "my-team" | "teams" | "catalog" | "backup";
+type CatalogSort = "name" | "team" | "role" | "slot" | "pma" | "pfc" | "expectedFantamedia" | "expectedTitolarita";
+type SortDirection = "ascending" | "descending";
+type CatalogStatus = "available" | "purchased";
 type CorrectionDraft = { playerName: string; teamId: string; price: string };
 type AuctionViewState = {
   activeView: ActiveView;
@@ -33,26 +36,35 @@ type AuctionViewState = {
   assignmentTeamId: string;
   assignmentPrice: string;
   correctionDraft: CorrectionDraft | null;
+  catalogQuery: string;
+  catalogRoles: ClassicRole[];
+  catalogSlots: number[];
+  catalogStatuses: CatalogStatus[];
+  catalogSort: CatalogSort;
+  catalogSortDirection: SortDirection;
 };
 
 const catalogColumns: Array<{
+  key: CatalogSort;
   label: string;
   rowHeader?: boolean;
+  firstDirection: SortDirection;
   render: (player: Player) => string;
 }> = [
-  { label: "Nome", rowHeader: true, render: (player) => escapeHtml(player.name) },
-  { label: "Squadra reale", render: (player) => escapeHtml(player.team) },
-  { label: "Ruolo", render: (player) => `<span class="role">${roleNames[player.role]}</span>` },
-  { label: "Slot", render: (player) => String(player.slot) },
-  { label: "PMA", render: (player) => numberFormatter.format(player.pma) },
-  { label: "PFC", render: (player) => numberFormatter.format(player.pfc) },
-  { label: "Fantamedia prevista", render: (player) => numberFormatter.format(player.expectedFantamedia) },
-  { label: "Titolarità prevista", render: (player) => `${numberFormatter.format(player.expectedTitolarita)}%` },
+  { key: "name", label: "Nome", rowHeader: true, firstDirection: "ascending", render: (player) => escapeHtml(player.name) },
+  { key: "team", label: "Squadra reale", firstDirection: "ascending", render: (player) => escapeHtml(player.team) },
+  { key: "role", label: "Ruolo", firstDirection: "ascending", render: (player) => `<span class="role">${roleNames[player.role]}</span>` },
+  { key: "slot", label: "Slot", firstDirection: "ascending", render: (player) => String(player.slot) },
+  { key: "pma", label: "PMA", firstDirection: "descending", render: (player) => numberFormatter.format(player.pma) },
+  { key: "pfc", label: "PFC", firstDirection: "descending", render: (player) => numberFormatter.format(player.pfc) },
+  { key: "expectedFantamedia", label: "Fantamedia prevista", firstDirection: "descending", render: (player) => numberFormatter.format(player.expectedFantamedia) },
+  { key: "expectedTitolarita", label: "Titolarità prevista", firstDirection: "descending", render: (player) => `${numberFormatter.format(player.expectedTitolarita)}%` },
 ];
 
 export function mountCatalogApp(root: HTMLElement): void {
-  render(root, new CatalogApplication(new BrowserStateStorage()), {
-    activeView: "auction",
+  const application = new CatalogApplication(new BrowserStateStorage());
+  render(root, application, {
+    activeView: application.observe()?.auction ? "auction" : "catalog",
     selectedPlayerName: null,
     selectedRole: "P",
     rankingSort: "pfc",
@@ -62,6 +74,12 @@ export function mountCatalogApp(root: HTMLElement): void {
     assignmentTeamId: "",
     assignmentPrice: "",
     correctionDraft: null,
+    catalogQuery: "",
+    catalogRoles: [],
+    catalogSlots: [],
+    catalogStatuses: [],
+    catalogSort: "pfc",
+    catalogSortDirection: "descending",
   });
 }
 
@@ -82,6 +100,21 @@ function resetAssignmentDraft(viewState: AuctionViewState): void {
   viewState.assignmentOpen = false;
   viewState.assignmentTeamId = "";
   viewState.assignmentPrice = "";
+}
+
+function resetCatalogControls(viewState: AuctionViewState): void {
+  viewState.catalogQuery = "";
+  viewState.catalogRoles = [];
+  viewState.catalogSlots = [];
+  viewState.catalogStatuses = [];
+  viewState.catalogSort = "pfc";
+  viewState.catalogSortDirection = "descending";
+}
+
+function toggleSelection<T>(values: T[], value: T): T[] {
+  return values.includes(value)
+    ? values.filter((candidate) => candidate !== value)
+    : [...values, value];
 }
 
 function renderImportForm(
@@ -114,17 +147,23 @@ function renderImportForm(
   `;
 }
 
-function renderBackupManager(hasState: boolean, notice = "", error = ""): string {
+function renderBackupView(hasState: boolean, notice = "", error = ""): string {
   return `
-    <section class="card backup-manager" aria-labelledby="backup-title">
-      <div>
-        <p class="eyebrow">Trasferimento manuale</p>
-        <h2 id="backup-title">Backup locale</h2>
-        <p>Esporta o ripristina l’intero stato con un unico file. Non è una sincronizzazione automatica.</p>
-        <p>Il salvataggio automatico vale sullo stesso dispositivo, browser e profilo in navigazione normale.</p>
+    <section class="active-heading" aria-labelledby="backup-title">
+      <p class="eyebrow">Protezione dei dati</p>
+      <h1 id="backup-title">Backup locale</h1>
+      <p>Esporta o ripristina l’intero stato con un unico file. Non è una sincronizzazione automatica.</p>
+      <p>Il salvataggio automatico vale sullo stesso dispositivo, browser e profilo in navigazione normale.</p>
+    </section>
+    <div class="backup-actions">
+      <section class="card backup-action" aria-labelledby="export-backup-title">
+        <h2 id="export-backup-title">Esporta Backup locale</h2>
+        <p>Scarica Catalogo, configurazione, Squadre, Shortlist e Asta attiva.</p>
         <button type="button" data-export-backup ${hasState ? "" : "disabled"}>Esporta Backup locale</button>
-      </div>
-      <form data-backup-form>
+      </section>
+      <form class="card backup-action" data-backup-form aria-labelledby="restore-backup-title">
+        <h2 id="restore-backup-title">Ripristina Backup locale</h2>
+        <p>Il file viene validato per intero prima di sostituire lo stato corrente.</p>
         <label class="file-label">
           Seleziona Backup locale
           <input name="backup" type="file" accept=".json,application/json" required />
@@ -133,7 +172,7 @@ function renderBackupManager(hasState: boolean, notice = "", error = ""): string
         ${notice ? `<p class="notice" role="status">${escapeHtml(notice)}</p>` : ""}
         ${error ? `<p class="errors" role="alert">${escapeHtml(error)}</p>` : ""}
       </form>
-    </section>
+    </div>
   `;
 }
 
@@ -163,8 +202,9 @@ function render(
           operationError,
           operationTarget,
         )
-      : renderCatalog(state, errors, notice, operationError, operationTarget)
+      : renderCatalog(state, viewState, errors, notice, operationError, operationTarget)
     : renderEmpty(
+        viewState,
         errors,
         operationTarget === "backup" ? notice : "",
         operationTarget === "backup" ? operationError : "",
@@ -237,7 +277,8 @@ function render(
       return;
     }
     if (result.status === "restored") {
-      viewState.activeView = "auction";
+      resetCatalogControls(viewState);
+      viewState.activeView = application.observe()?.auction ? "auction" : "catalog";
       viewState.selectedPlayerName = null;
       viewState.correctionDraft = null;
       resetAssignmentDraft(viewState);
@@ -259,6 +300,10 @@ function render(
         `La sostituzione rimuoverà ${result.lostAssociations} ${noun} della Shortlist. Sostituire l’intero Catalogo calciatori?`,
       )) return;
       result = application.importCatalog(csv, true);
+    }
+    if (result.status === "imported" || result.status === "replaced") {
+      resetCatalogControls(viewState);
+      viewState.activeView = "catalog";
     }
     render(
       root,
@@ -292,6 +337,7 @@ function render(
         .map((input) => input.value),
     });
     if (result.status === "started") {
+      viewState.activeView = "auction";
       render(root, application, viewState);
     } else {
       render(root, application, viewState, [], "", result.error, "configuration");
@@ -347,6 +393,7 @@ function render(
     }
     if (result.status === "reset") {
       viewState.activeView = "auction";
+      viewState.catalogStatuses = [];
       viewState.selectedPlayerName = null;
       viewState.correctionDraft = null;
       resetAssignmentDraft(viewState);
@@ -456,10 +503,79 @@ function render(
     render(root, application, viewState);
   });
 
-  root.querySelectorAll<HTMLAnchorElement>("[data-auction-view]").forEach((link) => {
+  root.querySelectorAll<HTMLElement>("[data-auction-view]").forEach((link) => {
     link.addEventListener("click", (event) => {
       event.preventDefault();
       viewState.activeView = link.dataset.auctionView as ActiveView;
+      render(root, application, viewState);
+    });
+  });
+
+  const catalogSearch = root.querySelector<HTMLInputElement>("[data-catalog-search]");
+  catalogSearch?.addEventListener("input", () => {
+    const selectionStart = catalogSearch.selectionStart;
+    const selectionEnd = catalogSearch.selectionEnd;
+    viewState.catalogQuery = catalogSearch.value;
+    render(root, application, viewState);
+    const replacement = root.querySelector<HTMLInputElement>("[data-catalog-search]");
+    replacement?.focus();
+    if (selectionStart !== null && selectionEnd !== null) {
+      replacement?.setSelectionRange(selectionStart, selectionEnd);
+    }
+  });
+
+  root.querySelectorAll<HTMLButtonElement>("[data-catalog-role]").forEach((button) => {
+    button.addEventListener("click", () => {
+      viewState.catalogRoles = toggleSelection(
+        viewState.catalogRoles,
+        button.dataset.catalogRole as ClassicRole,
+      );
+      render(root, application, viewState);
+    });
+  });
+
+  root.querySelectorAll<HTMLButtonElement>("[data-catalog-slot]").forEach((button) => {
+    button.addEventListener("click", () => {
+      viewState.catalogSlots = toggleSelection(
+        viewState.catalogSlots,
+        Number(button.dataset.catalogSlot),
+      );
+      render(root, application, viewState);
+    });
+  });
+
+  root.querySelectorAll<HTMLButtonElement>("[data-catalog-status]").forEach((button) => {
+    button.addEventListener("click", () => {
+      viewState.catalogStatuses = toggleSelection(
+        viewState.catalogStatuses,
+        button.dataset.catalogStatus as CatalogStatus,
+      );
+      render(root, application, viewState);
+    });
+  });
+
+  root.querySelectorAll<HTMLButtonElement>("[data-catalog-sort]").forEach((button) => {
+    button.addEventListener("click", () => {
+      const key = button.dataset.catalogSort as CatalogSort;
+      const column = catalogColumns.find((candidate) => candidate.key === key)!;
+      if (viewState.catalogSort === key) {
+        viewState.catalogSortDirection = viewState.catalogSortDirection === "ascending"
+          ? "descending"
+          : "ascending";
+      } else {
+        viewState.catalogSort = key;
+        viewState.catalogSortDirection = column.firstDirection;
+      }
+      render(root, application, viewState);
+    });
+  });
+
+  root.querySelectorAll<HTMLButtonElement>("[data-reset-catalog-controls]").forEach((button) => {
+    button.addEventListener("click", () => {
+      viewState.catalogQuery = "";
+      viewState.catalogRoles = [];
+      viewState.catalogSlots = [];
+      viewState.catalogStatuses = [];
       render(root, application, viewState);
     });
   });
@@ -652,30 +768,61 @@ function readText(form: HTMLFormElement, name: string): string {
 }
 
 function renderEmpty(
+  viewState: AuctionViewState,
   errors: ImportError[],
   backupNotice: string,
   backupError: string,
   importError: string,
 ): string {
   return `
-    <div class="shell">
-      ${renderHeader()}
-      <section class="import-layout" aria-labelledby="import-title">
-        <div>
-          <p class="eyebrow">Primo passo</p>
-          <h1 id="import-title">Importa il Catalogo calciatori</h1>
-          <p class="lede">Carica il CSV completo del provider. Il file viene controllato per intero prima di essere salvato sul dispositivo.</p>
-        </div>
-        ${renderImportForm(errors, false, "", importError)}
-      </section>
-      ${renderBackupManager(false, backupNotice, backupError)}
+    <div class="shell shell-wide">
+      ${renderHeader(viewState, false)}
+      ${viewState.activeView === "backup"
+        ? renderBackupView(false, backupNotice, backupError)
+        : `<section class="import-layout" aria-labelledby="import-title">
+            <div>
+              <p class="eyebrow">Primo passo</p>
+              <h1 id="import-title">Importa il Catalogo calciatori</h1>
+              <p class="lede">Carica il CSV completo del provider. Il file viene controllato per intero prima di essere salvato sul dispositivo.</p>
+            </div>
+            ${renderImportForm(errors, false, "", importError)}
+          </section>`}
     </div>
   `;
 }
 
 function renderCatalog(
   state: Readonly<AppState>,
+  viewState: AuctionViewState,
   errors: ImportError[],
+  notice: string,
+  operationError: string,
+  operationTarget: OperationTarget,
+): string {
+  const restoredNotice = operationTarget === "backup" && notice
+    ? `<p class="notice global-notice" role="status">${escapeHtml(notice)}</p>`
+    : "";
+  const content = viewState.activeView === "backup"
+    ? renderBackupView(
+        true,
+        operationTarget === "backup" ? notice : "",
+        operationTarget === "backup" ? operationError : "",
+      )
+    : viewState.activeView === "auction"
+    ? renderAuctionSetup(state, notice, operationError, operationTarget)
+    : renderCatalogSection(state, viewState, errors, notice, operationError, operationTarget);
+
+  return `
+    <div class="shell shell-wide">
+      ${renderHeader(viewState, true)}
+      ${viewState.activeView === "backup" ? "" : restoredNotice}
+      ${content}
+    </div>
+  `;
+}
+
+function renderAuctionSetup(
+  state: Readonly<AppState>,
   notice: string,
   operationError: string,
   operationTarget: OperationTarget,
@@ -685,28 +832,10 @@ function renderCatalog(
   const teams = setup?.teams ?? [];
   const teamCount = configuration?.teamCount ?? 8;
   return `
-    <div class="shell shell-wide">
-      ${renderHeader(true)}
-      ${renderBackupManager(
-        true,
-        operationTarget === "backup" ? notice : "",
-        operationTarget === "backup" ? operationError : "",
-      )}
-      <section class="catalog-heading">
-        <div>
-          <p class="eyebrow">Catalogo pronto</p>
-          <h1>Catalogo calciatori</h1>
-          <p class="catalog-count">${state.catalog.length} calciatori disponibili</p>
-        </div>
-        <details class="replace-panel" ${errors.length > 0 || operationTarget === "import" && (notice || operationError) ? "open" : ""}>
-          <summary>Sostituisci Catalogo calciatori</summary>
-          ${renderImportForm(
-            errors,
-            true,
-            operationTarget === "import" ? notice : "",
-            operationTarget === "import" ? operationError : "",
-          )}
-        </details>
+      <section class="active-heading">
+        <p class="eyebrow">Configurazione</p>
+        <h1>Asta</h1>
+        <p>Definisci le regole comuni e assegna un nome alla tua Squadra principale.</p>
       </section>
       <form class="card auction-setup" id="auction-setup">
         <div>
@@ -732,27 +861,152 @@ function renderCatalog(
           )}</div>
         </div>
       </form>
-      ${renderShortlistManager(
-        state,
-        operationTarget === "shortlist" ? notice : "",
-        operationTarget === "shortlist" ? operationError : "",
-      )}
-      ${renderCatalogTable(state)}
-    </div>
+  `;
+}
+
+function renderCatalogSection(
+  state: Readonly<AppState>,
+  viewState: AuctionViewState,
+  errors: ImportError[],
+  notice: string,
+  operationError: string,
+  operationTarget: OperationTarget,
+): string {
+  const importFeedback = operationTarget === "import" && (notice || operationError || errors.length > 0);
+  const shortlistFeedback = operationTarget === "shortlist";
+  return `
+    <section class="catalog-heading">
+      <div>
+        <p class="eyebrow">Preparazione personale</p>
+        <h1>Catalogo calciatori</h1>
+        <p class="catalog-count">${availablePlayers(state).length} calciatori disponibili</p>
+      </div>
+      <div class="catalog-heading-actions">
+        ${state.auction
+          ? `<div class="catalog-replacement-blocked">
+              <button type="button" disabled>Sostituisci Catalogo calciatori</button>
+              <p>Per sostituire il Catalogo calciatori devi prima eseguire il Reset dell’asta.</p>
+            </div>`
+          : `<details class="management-panel replace-panel" ${importFeedback ? "open" : ""}>
+              <summary>Sostituisci Catalogo calciatori</summary>
+              ${renderImportForm(
+                errors,
+                true,
+                operationTarget === "import" ? notice : "",
+                operationTarget === "import" ? operationError : "",
+              )}
+            </details>`}
+        <details class="management-panel" ${shortlistFeedback ? "open" : ""}>
+          <summary>Gestisci Shortlist</summary>
+          ${renderShortlistManager(
+            state,
+            operationTarget === "shortlist" ? notice : "",
+            operationTarget === "shortlist" ? operationError : "",
+          )}
+        </details>
+      </div>
+    </section>
+    ${operationTarget === "purchase" && notice
+      ? `<p class="notice global-notice" role="status">${escapeHtml(notice)}</p>`
+      : ""}
+    ${operationTarget === "purchase" && operationError && !viewState.correctionDraft
+      ? `<p class="errors global-notice" role="alert">${escapeHtml(operationError)}</p>`
+      : ""}
+    ${renderCatalogTable(
+      state,
+      viewState,
+      operationTarget === "purchase" ? operationError : "",
+    )}
   `;
 }
 
 function renderCatalogTable(
   state: Readonly<AppState>,
-  viewState?: AuctionViewState,
+  viewState: AuctionViewState,
   operationError = "",
 ): string {
   const showAvailability = Boolean(state.auction);
+  const purchasedPlayerNames = new Set(
+    state.auction?.purchases.map((purchase) => purchase.playerName) ?? [],
+  );
+  const query = viewState.catalogQuery.trim().toLocaleLowerCase("it-IT");
+  const slots = [...new Set(state.catalog.map((player) => player.slot))]
+    .sort((left, right) => left - right);
+  const players = state.catalog
+    .filter((player) => {
+      const matchesQuery = query === ""
+        || player.name.toLocaleLowerCase("it-IT").includes(query)
+        || player.team.toLocaleLowerCase("it-IT").includes(query);
+      const matchesRole = viewState.catalogRoles.length === 0
+        || viewState.catalogRoles.includes(player.role);
+      const matchesSlot = viewState.catalogSlots.length === 0
+        || viewState.catalogSlots.includes(player.slot);
+      const status: CatalogStatus = purchasedPlayerNames.has(player.name)
+        ? "purchased"
+        : "available";
+      const matchesStatus = !state.auction
+        || viewState.catalogStatuses.length === 0
+        || viewState.catalogStatuses.includes(status);
+      return matchesQuery && matchesRole && matchesSlot && matchesStatus;
+    })
+    .sort((left, right) => compareCatalogPlayers(left, right, viewState));
+  const hasFilters = query !== ""
+    || viewState.catalogRoles.length > 0
+    || viewState.catalogSlots.length > 0
+    || showAvailability && viewState.catalogStatuses.length > 0;
+  const columnCount = catalogColumns.length + 1 + (showAvailability ? 1 : 0);
+
   return `
+    <section class="catalog-controls card" aria-label="Ricerca e filtri del Catalogo">
+      <label class="catalog-search">Cerca per nome o squadra reale
+        <input type="search" data-catalog-search value="${escapeHtml(viewState.catalogQuery)}" />
+      </label>
+      <div class="catalog-filter" role="group" aria-labelledby="catalog-role-filter">
+        <span id="catalog-role-filter">Ruolo</span>
+        <div class="filter-options">${Object.entries(roleNames).map(([role, label]) => `
+          <button type="button" data-catalog-role="${role}" aria-pressed="${viewState.catalogRoles.includes(role as ClassicRole)}">${label}</button>
+        `).join("")}</div>
+      </div>
+      <div class="catalog-filter" role="group" aria-labelledby="catalog-slot-filter">
+        <span id="catalog-slot-filter">Slot</span>
+        <div class="filter-options">${slots.map((slot) => `
+          <button type="button" data-catalog-slot="${slot}" aria-pressed="${viewState.catalogSlots.includes(slot)}">${slot}</button>
+        `).join("")}</div>
+      </div>
+      ${showAvailability ? `
+        <div class="catalog-filter" role="group" aria-labelledby="catalog-status-filter">
+          <span id="catalog-status-filter">Stato</span>
+          <div class="filter-options">
+            <button type="button" data-catalog-status="available" aria-pressed="${viewState.catalogStatuses.includes("available")}">Disponibili</button>
+            <button type="button" data-catalog-status="purchased" aria-pressed="${viewState.catalogStatuses.includes("purchased")}">Acquistati</button>
+          </div>
+        </div>
+      ` : ""}
+      <div class="catalog-control-summary">
+        <p id="catalog-result-count" aria-live="polite">${players.length} ${players.length === 1 ? "calciatore" : "calciatori"} su ${state.catalog.length}</p>
+        <button type="button" class="secondary-button" data-reset-catalog-controls ${hasFilters ? "" : "disabled"}>Azzera ricerca e filtri</button>
+      </div>
+    </section>
     <div class="table-frame">
-      <table>
-        <thead><tr>${catalogColumns.map((column) => `<th>${column.label}</th>`).join("")}<th>Shortlist</th>${showAvailability ? "<th>Stato</th>" : ""}</tr></thead>
-        <tbody>${state.catalog.map((player) => {
+      <table aria-describedby="catalog-result-count">
+        <thead><tr>${catalogColumns.map((column) => {
+          const active = viewState.catalogSort === column.key;
+          const direction = active ? viewState.catalogSortDirection : column.firstDirection;
+          const nextDirection = active
+            ? direction === "ascending"
+              ? "decrescente"
+              : "crescente"
+            : column.firstDirection === "ascending"
+              ? "crescente"
+              : "decrescente";
+          return `<th ${active ? `aria-sort="${direction}"` : ""}><button type="button" class="catalog-sort-button" data-catalog-sort="${column.key}" aria-label="Ordina ${column.label} in ordine ${nextDirection}">${column.label}<span class="sort-indicator" data-direction="${active ? direction : ""}" aria-hidden="true"></span></button></th>`;
+        }).join("")}<th>Shortlist</th>${showAvailability ? "<th>Stato</th>" : ""}</tr></thead>
+        <tbody>${players.length === 0
+          ? `<tr><td class="empty-catalog" colspan="${columnCount}">
+              <p>Nessun calciatore corrisponde alla ricerca e ai filtri selezionati.</p>
+              <button type="button" data-reset-catalog-controls>Azzera ricerca e filtri</button>
+            </td></tr>`
+          : players.map((player) => {
           const purchase = state.auction?.purchases.find(
             (candidate) => candidate.playerName === player.name,
           );
@@ -763,7 +1017,7 @@ function renderCatalogTable(
             ? `Acquistato · ${escapeHtml(team?.name ?? "Squadra non disponibile")} · ${purchase.finalPrice} crediti
               <button type="button" data-edit-purchase="${escapeHtml(player.name)}" aria-label="Correggi Acquisto ${escapeHtml(player.name)}">Correggi</button>
               <button type="button" data-cancel-purchase="${escapeHtml(player.name)}" aria-label="Annulla Acquisto ${escapeHtml(player.name)}">Annulla</button>
-              ${viewState?.correctionDraft?.playerName === player.name
+              ${viewState.correctionDraft?.playerName === player.name
                 ? renderCorrectionForm(state.auction!, viewState.correctionDraft, operationError)
                 : ""}`
             : "Disponibile";
@@ -777,6 +1031,22 @@ function renderCatalogTable(
       </table>
     </div>
   `;
+}
+
+function compareCatalogPlayers(
+  left: Player,
+  right: Player,
+  viewState: AuctionViewState,
+): number {
+  const roleOrder: ClassicRole[] = ["P", "D", "C", "A"];
+  const key = viewState.catalogSort;
+  const difference = key === "name" || key === "team"
+    ? left[key].localeCompare(right[key], "it-IT")
+    : key === "role"
+    ? roleOrder.indexOf(left.role) - roleOrder.indexOf(right.role)
+    : left[key] - right[key];
+  const directed = viewState.catalogSortDirection === "ascending" ? difference : -difference;
+  return directed || left.name.localeCompare(right.name, "it-IT");
 }
 
 function renderPlayerShortlist(player: Player, state: Readonly<AppState>): string {
@@ -883,28 +1153,30 @@ function renderActiveAuction(
   const auctionComplete = isAuctionComplete(auction, state.catalog);
   const availableCount = availablePlayers(state).length;
   if (viewState.activeView !== "auction") {
-    return `
-      <div class="shell shell-wide">
-        ${renderActiveHeader(state, auction, viewState)}
-        ${renderBackupManager(
+    const content = viewState.activeView === "catalog"
+      ? renderCatalogSection(state, viewState, [], notice, operationError, operationTarget)
+      : viewState.activeView === "backup"
+      ? renderBackupView(
           true,
           operationTarget === "backup" ? notice : "",
           operationTarget === "backup" ? operationError : "",
-        )}
-        ${viewState.activeView === "my-team"
-          ? renderMyRoster(state, auction)
-          : renderOpponentTeams(state, auction)}
+        )
+      : viewState.activeView === "my-team"
+      ? renderMyRoster(state, auction)
+      : renderOpponentTeams(state, auction);
+    return `
+      <div class="shell shell-wide">
+        ${renderActiveHeader(state, auction, viewState)}
+        ${content}
       </div>
     `;
   }
   return `
     <div class="shell shell-wide">
       ${renderActiveHeader(state, auction, viewState)}
-      ${renderBackupManager(
-        true,
-        operationTarget === "backup" ? notice : "",
-        operationTarget === "backup" ? operationError : "",
-      )}
+      ${operationTarget === "backup" && notice
+        ? `<p class="notice global-notice" role="status">${escapeHtml(notice)}</p>`
+        : ""}
       <section class="active-heading">
         <p class="eyebrow">${auctionComplete ? "Sessione completata" : "Sessione in corso"}</p>
         <h1>Asta</h1>
@@ -912,10 +1184,7 @@ function renderActiveAuction(
         <p>${auctionComplete
           ? "Tutte le Squadre hanno occupato i Posti di ruolo configurati."
           : "Le regole strutturali sono bloccate. I nomi delle Squadre restano modificabili."}</p>
-        <div class="catalog-replacement-blocked">
-          <button type="button" disabled>Sostituisci Catalogo calciatori</button>
-          <p>Per sostituire il Catalogo calciatori devi prima eseguire il Reset dell’asta.</p>
-        </div>
+        <p class="catalog-count">${availableCount} calciatori disponibili</p>
       </section>
       <div class="auction-command-center">
         <section class="card" aria-label="Ranking e Scarsità">
@@ -949,7 +1218,9 @@ function renderActiveAuction(
             : "<p>Nessun calciatore acquistato.</p>"}
         </section>
       </div>
-      <form class="card auction-setup" id="auction-configuration">
+      <details class="auction-configuration-panel" ${operationTarget === "configuration" && (notice || operationError) ? "open" : ""}>
+        <summary>Configurazione d’asta</summary>
+        <form class="card auction-setup" id="auction-configuration">
         <div>
           <h2>Configurazione d’asta</h2>
           <p>Un’unica sessione locale, senza storico di aste.</p>
@@ -973,24 +1244,8 @@ function renderActiveAuction(
             </label>
           `).join("")}
         </div>
-      </form>
-      <section class="catalog-heading active-catalog-heading">
-        <div>
-          <p class="eyebrow">Preparazione personale</p>
-          <h2>Catalogo calciatori</h2>
-          <p class="catalog-count">${availableCount} calciatori disponibili</p>
-        </div>
-      </section>
-      ${renderShortlistManager(
-        state,
-        operationTarget === "shortlist" ? notice : "",
-        operationTarget === "shortlist" ? operationError : "",
-      )}
-      ${renderCatalogTable(
-        state,
-        viewState,
-        operationTarget === "purchase" ? operationError : "",
-      )}
+        </form>
+      </details>
     </div>
   `;
 }
@@ -1405,20 +1660,10 @@ function renderActiveHeader(
   const selectedPlayer = state.catalog.find(
     (player) => player.name === viewState.selectedPlayerName,
   );
-  const links: Array<{ view: ActiveView; label: string }> = [
-    { view: "auction", label: "Asta" },
-    { view: "my-team", label: "La mia rosa" },
-    { view: "teams", label: "Squadre" },
-  ];
-
   return `
     <header class="topbar active-topbar" role="banner">
       <div class="brand"><span class="brand-mark" aria-hidden="true">F</span>Asta Fantacalcio</div>
-      <nav class="primary-navigation" aria-label="Navigazione primaria">
-        ${links.map(({ view, label }) => `
-          <a href="#${view}" data-auction-view="${view}" ${viewState.activeView === view ? 'aria-current="page"' : ""}>${label}</a>
-        `).join("")}
-      </nav>
+      ${renderPrimaryNavigation(viewState, true, true)}
       <form class="player-search header-player-search" data-player-search>
         <label>
           Cerca il Calciatore chiamato
@@ -1439,11 +1684,60 @@ function renderActiveHeader(
   `;
 }
 
-function renderHeader(canStartAuction = false): string {
+function renderPrimaryNavigation(
+  viewState: AuctionViewState,
+  hasCatalog: boolean,
+  hasAuction: boolean,
+): string {
+  const links: Array<{
+    view: ActiveView;
+    label: string;
+    enabled: boolean;
+    unavailableReason?: string;
+  }> = [
+    {
+      view: "auction",
+      label: "Asta",
+      enabled: hasCatalog,
+      unavailableReason: "disponibile dopo l’importazione del Catalogo",
+    },
+    {
+      view: "my-team",
+      label: "La mia rosa",
+      enabled: hasAuction,
+      unavailableReason: "disponibile dopo l’avvio dell’Asta",
+    },
+    {
+      view: "teams",
+      label: "Squadre",
+      enabled: hasAuction,
+      unavailableReason: "disponibile dopo l’avvio dell’Asta",
+    },
+    { view: "catalog", label: "Catalogo", enabled: true },
+    { view: "backup", label: "Backup", enabled: true },
+  ];
+
+  return `
+    <nav class="primary-navigation" aria-label="Navigazione primaria">
+      ${links.map(({ view, label, enabled, unavailableReason }) => enabled
+        ? `<a href="#${view}" data-auction-view="${view}" ${viewState.activeView === view ? 'aria-current="page"' : ""}>${label}</a>`
+        : `<span aria-disabled="true" aria-label="${label}: ${unavailableReason}">${label}</span>`
+      ).join("")}
+    </nav>
+  `;
+}
+
+function renderHeader(viewState?: AuctionViewState, hasCatalog = false): string {
+  const auctionButton = hasCatalog && viewState?.activeView === "auction"
+    ? '<button type="submit" form="auction-setup">Avvia asta</button>'
+    : hasCatalog
+    ? '<button type="button" data-auction-view="auction">Configura asta</button>'
+    : '<button type="button" disabled>Avvia asta</button>';
   return `
     <header class="topbar">
       <div class="brand"><span class="brand-mark" aria-hidden="true">F</span>Asta Fantacalcio</div>
-      <button type="submit" ${canStartAuction ? 'form="auction-setup"' : "disabled"}>Avvia asta</button>
+      ${viewState ? renderPrimaryNavigation(viewState, hasCatalog, false) : ""}
+      ${auctionButton}
     </header>
   `;
 }

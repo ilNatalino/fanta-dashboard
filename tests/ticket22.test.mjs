@@ -205,6 +205,7 @@ test("il browser conserva stato corrente e copia precedente entro la promessa lo
     ".scratch/fanta-mvp/assets/04-catalogo-rappresentativo.csv",
   );
   await page.getByRole("button", { name: "Importa catalogo" }).click();
+  await page.locator("summary").filter({ hasText: "Gestisci Shortlist" }).click();
   await page.getByLabel("Nuova categoria").fill("Ultima operazione");
   await page.getByRole("button", { name: "Crea categoria" }).click();
 
@@ -217,6 +218,9 @@ test("il browser conserva stato corrente e copia precedente entro la promessa lo
     playerNames: [],
   }]);
   assert.deepEqual(copies.previous.shortlistCategories, []);
+  await page.getByRole("navigation", { name: "Navigazione primaria" })
+    .getByRole("link", { name: "Backup" })
+    .click();
   assert.equal(
     await page.getByText(
       "Il salvataggio automatico vale sullo stesso dispositivo, browser e profilo in navigazione normale.",
@@ -225,6 +229,7 @@ test("il browser conserva stato corrente e copia precedente entro la promessa lo
   );
 
   await page.reload();
+  await page.locator("summary").filter({ hasText: "Gestisci Shortlist" }).click();
   assert.equal(await page.getByRole("heading", { name: "Ultima operazione" }).isVisible(), true);
   assert.equal(await page.getByText(/ultima operazione potrebbe essere stata persa/i).count(), 0);
   await page.close();
@@ -348,6 +353,7 @@ test("l'interfaccia conserva lo stato confermato e mostra l'errore di scrittura"
   const confirmedState = savedState("CONFERMATO");
   const page = await openWithFailedWrites(confirmedState);
 
+  await page.locator("summary").filter({ hasText: "Gestisci Shortlist" }).click();
   await page.getByLabel("Nuova categoria").fill("Da non confermare");
   await page.getByRole("button", { name: "Crea categoria" }).click();
 

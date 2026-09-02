@@ -34,7 +34,7 @@ _Avoid_: Aggiunta incrementale, correzione in-app del CSV
 
 **Backup locale**:
 Un file esportabile che rappresenta catalogo, configurazione, squadre, shortlist e asta attiva come un unico stato ripristinabile.
-_Avoid_: Sincronizzazione cloud, esportazione del solo catalogo
+_Avoid_: Trasferimento manuale, sincronizzazione cloud, esportazione del solo catalogo
 
 **Shortlist**:
 L'insieme dei calciatori d'interesse personale, organizzati in una o più categorie dal fantallenatore principale.

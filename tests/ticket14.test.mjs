@@ -24,12 +24,17 @@ async function openActiveAuction() {
   );
   await page.getByRole("button", { name: "Importa catalogo" }).click();
   await page.getByText("32 calciatori disponibili").waitFor({ state: "visible" });
+  await page.getByRole("navigation", { name: "Navigazione primaria" })
+    .getByRole("link", { name: "Asta" })
+    .click();
   await page.getByLabel("Nome della Squadra principale").fill("I Falchi");
   await page.getByRole("button", { name: "Avvia asta" }).click();
   return page;
 }
 
 async function createCategory(page, name) {
+  const panel = page.locator("details").filter({ hasText: "Gestisci Shortlist" });
+  if (await panel.getAttribute("open") === null) await panel.locator("summary").click();
   await page.getByLabel("Nuova categoria").fill(name);
   await page.getByRole("button", { name: "Crea categoria" }).click();
 }
@@ -68,6 +73,9 @@ test("la ricerca apre e chiude la Scheda d’asta senza modificare il Catalogo",
 
   await card.getByRole("button", { name: "Chiudi Scheda d’asta" }).click();
   assert.equal(await card.getByRole("heading", { name: "GIOCATORE_D_01" }).count(), 0);
+  await page.getByRole("navigation", { name: "Navigazione primaria" })
+    .getByRole("link", { name: "Catalogo" })
+    .click();
   assert.equal(await page.getByText("32 calciatori disponibili").isVisible(), true);
   assert.equal(await page.getByText(/cronologia/i).count(), 0);
 
@@ -134,6 +142,9 @@ test("la Scheda gestisce la Shortlist senza alterare Ranking, Scarsità o Altern
   await page.getByText("32 calciatori disponibili").waitFor({ state: "visible" });
   await createCategory(page, "Osservati");
   await page.getByLabel("GIOCATORE_P_05 · Osservati").check();
+  await page.getByRole("navigation", { name: "Navigazione primaria" })
+    .getByRole("link", { name: "Asta" })
+    .click();
   await page.getByLabel("Nome della Squadra principale").fill("I Falchi");
   await page.getByRole("button", { name: "Avvia asta" }).click();
 
@@ -212,6 +223,9 @@ test("la Scarsità include gli Slot del Ruolo che hanno zero disponibili", async
   });
   await page.getByRole("button", { name: "Importa catalogo" }).click();
   await page.getByText("3 calciatori disponibili").waitFor({ state: "visible" });
+  await page.getByRole("navigation", { name: "Navigazione primaria" })
+    .getByRole("link", { name: "Asta" })
+    .click();
   await page.getByLabel("Nome della Squadra principale").fill("I Falchi");
   await page.getByRole("button", { name: "Avvia asta" }).click();
 
