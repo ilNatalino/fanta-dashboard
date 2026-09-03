@@ -85,7 +85,7 @@ test("la Correzione dell'acquisto è precompilata e aggiorna Squadra, prezzo, bu
   assert.equal(await mainTeam.getByText("DIF 1/8").isVisible(), true);
   assert.equal(await mainTeam.getByText("GIOCATORE_D_01 · 120 crediti").isVisible(), true);
   assert.equal(
-    await page.getByRole("list", { name: "Scarsità DIF" }).getByText("S1 0").isVisible(),
+    await page.getByRole("list", { name: "Scarsità DIF" }).locator('[aria-label="Slot 1: 0 disponibili"]').isVisible(),
     true,
   );
 
@@ -176,7 +176,7 @@ test("la Shortlist nasconde gli acquistati per impostazione predefinita e può m
   await openView(page, "Asta");
   await page.getByLabel("Mostra anche gli acquistati nella Shortlist").check();
   assert.equal(
-    await page.getByRole("list", { name: "Acquistati nella Shortlist" }).getByRole("listitem").innerText(),
+    (await page.getByRole("list", { name: "Acquistati nella Shortlist" }).getByRole("listitem").innerText()).replace(/\s+/g, " "),
     "GIOCATORE_D_01 · PFC 143 · Acquistato",
   );
   assert.equal(await ranking.getByRole("listitem").count(), 0);
@@ -189,7 +189,7 @@ test("la Shortlist nasconde gli acquistati per impostazione predefinita e può m
 
   await openView(page, "Asta");
   assert.equal(
-    await ranking.getByRole("listitem").innerText(),
+    (await ranking.getByRole("listitem").innerText()).replace(/\s+/g, " "),
     "GIOCATORE_D_01 · PFC 143",
   );
   await openView(page, "Catalogo");
@@ -233,7 +233,7 @@ test("l'annullamento richiede conferma, restituisce il calciatore e ricalcola su
     true,
   );
   assert.equal(
-    await page.getByRole("list", { name: "Scarsità CEN" }).getByText("S3 1").isVisible(),
+    await page.getByRole("list", { name: "Scarsità CEN" }).locator('[aria-label="Slot 3: 1 disponibile"]').isVisible(),
     true,
   );
   assert.equal(await signals.getByText("Dati insufficienti", { exact: true }).isVisible(), true);

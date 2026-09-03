@@ -73,7 +73,7 @@ test("un Acquisto valido aggiorna atomicamente disponibilità, budget e inventar
   );
   assert.deepEqual(
     await page.getByRole("list", { name: "Scarsità DIF" }).getByRole("listitem").allTextContents(),
-    ["S1 0", "S2 1", "S3 1", "S4 1", "S5 1", "S6 1", "S7 1", "S8 1"],
+    ["Slot 1 0 disponibili", "Slot 2 1 disponibile", "Slot 3 1 disponibile", "Slot 4 1 disponibile", "Slot 5 1 disponibile", "Slot 6 1 disponibile", "Slot 7 1 disponibile", "Slot 8 1 disponibile"],
   );
 
   await page.reload();
@@ -165,7 +165,7 @@ test("la Scarsità mantiene a zero l'ultimo Slot dopo l'Acquisto", async () => {
 
   assert.deepEqual(
     await page.getByRole("list", { name: "Scarsità DIF" }).getByRole("listitem").allTextContents(),
-    ["S1 1", "S2 1", "S3 1", "S4 1", "S5 1", "S6 1", "S7 1", "S8 0"],
+    ["Slot 1 1 disponibile", "Slot 2 1 disponibile", "Slot 3 1 disponibile", "Slot 4 1 disponibile", "Slot 5 1 disponibile", "Slot 6 1 disponibile", "Slot 7 1 disponibile", "Slot 8 0 disponibili"],
   );
 
   await page.close();

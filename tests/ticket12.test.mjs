@@ -85,7 +85,7 @@ test("l'avvio salva l'unica Asta attiva, blocca le regole strutturali e sopravvi
   assert.equal(await page.getByLabel("Numero di Squadre").inputValue(), "8");
   assert.equal(await page.getByLabel("Budget iniziale comune").inputValue(), "1000");
   assert.equal(await page.getByLabel("Nome della Squadra principale").inputValue(), "I Falchi");
-  assert.equal(await page.getByRole("button", { name: "Asta avviata" }).isDisabled(), true);
+  assert.equal(await page.getByText("Asta avviata", { exact: true }).isVisible(), true);
 
   await page.close();
 });
@@ -104,6 +104,7 @@ test("numero di Squadre, budget, Posti di ruolo, Soglia di adattamento e tollera
   await page.getByLabel("Posti DIF").fill("7");
   await page.getByLabel("Posti CEN").fill("7");
   await page.getByLabel("Posti ATT").fill("5");
+  await page.getByText("Parametri di mercato avanzati", { exact: true }).click();
   await page.getByLabel("Soglia di adattamento").fill("4");
   await page.getByLabel("Tolleranza della Percezione storica di mercato (%)").fill("7");
   await page.getByLabel("Nome della Squadra principale").fill("I Lupi");
@@ -135,7 +136,7 @@ test("dopo l'avvio i nomi delle Squadre, la Soglia di adattamento e la tolleranz
   await page.getByLabel("Tolleranza della Percezione storica di mercato (%)").fill("6");
   await page.getByRole("button", { name: "Salva Configurazione d’asta" }).click();
 
-  assert.equal(await page.getByRole("status").innerText(), "Configurazione d’asta salvata.");
+  assert.equal(await page.getByText("Configurazione d’asta salvata.", { exact: true }).isVisible(), true);
   await page.reload();
   assert.equal(await page.getByLabel("Nome della Squadra principale").inputValue(), "Le Aquile");
   assert.equal(await page.getByLabel("Squadra avversaria 2").inputValue(), "I Rivali");

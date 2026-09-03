@@ -42,7 +42,7 @@ async function createCategory(page, name) {
 test("l'Asta presenta il command center operativo in tre zone informative", async () => {
   const page = await openActiveAuction();
 
-  assert.equal(await page.getByRole("heading", { name: "Asta", exact: true }).isVisible(), true);
+  assert.equal(await page.getByRole("heading", { name: "Asta attiva", exact: true }).isVisible(), true);
   assert.equal(await page.getByRole("region", { name: "Ranking e Scarsità" }).isVisible(), true);
   assert.equal(await page.getByRole("region", { name: "Scheda d’asta" }).isVisible(), true);
   assert.equal(await page.getByRole("region", { name: "I Falchi" }).isVisible(), true);
@@ -102,7 +102,7 @@ test("Ranking, ordinamenti trasparenti e Scarsità restano distinti per Ruolo Cl
   );
   assert.deepEqual(
     await region.getByRole("list", { name: "Scarsità ATT" }).getByRole("listitem").allTextContents(),
-    ["S1 1", "S2 1", "S3 1", "S4 1", "S5 2", "S6 2"],
+    ["Slot 1 1 disponibile", "Slot 2 1 disponibile", "Slot 3 1 disponibile", "Slot 4 1 disponibile", "Slot 5 2 disponibili", "Slot 6 2 disponibili"],
   );
 
   await region.getByLabel("Ordina ranking").selectOption("pma");
@@ -125,7 +125,7 @@ test("Ranking, ordinamenti trasparenti e Scarsità restano distinti per Ruolo Cl
   );
   await region.getByLabel("Ordina ranking").selectOption("expectedFantamedia");
   assert.equal(
-    await region.getByRole("list", { name: "Ranking ATT" }).getByRole("listitem").first().innerText(),
+    (await region.getByRole("list", { name: "Ranking ATT" }).getByRole("listitem").first().innerText()).replace(/\s+/g, " "),
     "GIOCATORE_A_01 · Fantamedia 7,54",
   );
 
@@ -172,7 +172,7 @@ test("la Scheda gestisce la Shortlist senza alterare Ranking, Scarsità o Altern
   );
   assert.deepEqual(
     await page.getByRole("list", { name: "Scarsità POR" }).getByRole("listitem").allTextContents(),
-    ["S1 1", "S2 1", "S3 6"],
+    ["Slot 1 1 disponibile", "Slot 2 1 disponibile", "Slot 3 6 disponibili"],
   );
   assert.deepEqual(
     await alternatives.getByRole("listitem").allTextContents(),
@@ -231,7 +231,7 @@ test("la Scarsità include gli Slot del Ruolo che hanno zero disponibili", async
 
   assert.deepEqual(
     await page.getByRole("list", { name: "Scarsità POR" }).getByRole("listitem").allTextContents(),
-    ["S1 1", "S2 0", "S3 2"],
+    ["Slot 1 1 disponibile", "Slot 2 0 disponibili", "Slot 3 2 disponibili"],
   );
 
   await page.close();

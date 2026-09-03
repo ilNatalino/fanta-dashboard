@@ -93,10 +93,11 @@ async function importBackup(page, contents, acceptConfirmation) {
     buffer: Buffer.from(contents),
   });
   const dialog = page.waitForEvent("dialog");
-  await page.getByRole("button", { name: "Ripristina Backup locale" }).click();
+  const click = page.getByRole("button", { name: "Ripristina Backup locale" }).click();
   const confirmation = await dialog;
   const message = confirmation.message();
   await (acceptConfirmation ? confirmation.accept() : confirmation.dismiss());
+  await click;
   return message;
 }
 
@@ -147,7 +148,7 @@ test("il Backup locale ripristina atomicamente Catalogo, categorie sovrapposte, 
   assert.equal(await page.getByLabel("Nome della Squadra principale").inputValue(), "Squadra corrente");
   await openView(page, "Catalogo");
   assert.equal(await page.getByLabel("CORRENTE_D_01 · Stato corrente").isChecked(), true);
-  assert.equal(await page.getByText(/Acquistato · Squadra corrente · 10 crediti/).isVisible(), true);
+  assert.match(await page.getByRole("row", { name: /CORRENTE_D_01/ }).innerText(), /Acquistato · Squadra corrente · 10 crediti/);
 
   await importBackup(page, backupContents, true);
   assert.equal(await page.getByRole("status").getByText("Backup locale ripristinato.").isVisible(), true);
@@ -159,7 +160,7 @@ test("il Backup locale ripristina atomicamente Catalogo, categorie sovrapposte, 
   await openView(page, "Catalogo");
   assert.equal(await page.getByLabel("GIOCATORE_D_01 · Priorità").isChecked(), true);
   assert.equal(await page.getByLabel("GIOCATORE_D_01 · Occasioni").isChecked(), true);
-  assert.equal(await page.getByText(/Acquistato · I Falchi · 157 crediti/).isVisible(), true);
+  assert.match(await page.getByRole("row", { name: /GIOCATORE_D_01/ }).innerText(), /Acquistato · I Falchi · 157 crediti/);
 
   await page.reload();
   assert.equal(await page.getByLabel("Budget iniziale comune").inputValue(), "500");
@@ -167,7 +168,7 @@ test("il Backup locale ripristina atomicamente Catalogo, categorie sovrapposte, 
   assert.equal(await page.getByLabel("Nome della Squadra principale").inputValue(), "I Falchi");
   await openView(page, "Catalogo");
   assert.equal(await page.getByLabel("GIOCATORE_D_01 · Occasioni").isChecked(), true);
-  assert.equal(await page.getByText(/Acquistato · I Falchi · 157 crediti/).isVisible(), true);
+  assert.match(await page.getByRole("row", { name: /GIOCATORE_D_01/ }).innerText(), /Acquistato · I Falchi · 157 crediti/);
 
   await page.close();
 });
@@ -208,7 +209,7 @@ test("backup invalidi o incompatibili sono rifiutati senza proporre conferma né
     assert.equal(await page.getByLabel("Nome della Squadra principale").inputValue(), "I Falchi");
     await openView(page, "Catalogo");
     assert.equal(await page.getByLabel("GIOCATORE_C_01 · Da conservare").isChecked(), true);
-    assert.equal(await page.getByText(/Acquistato · I Falchi · 157 crediti/).isVisible(), true);
+    assert.match(await page.getByRole("row", { name: /GIOCATORE_D_01/ }).innerText(), /Acquistato · I Falchi · 157 crediti/);
     await openView(page, "Backup");
   }
 
@@ -220,7 +221,7 @@ test("backup invalidi o incompatibili sono rifiutati senza proporre conferma né
   assert.equal(await page.getByLabel("Nome della Squadra principale").inputValue(), "I Falchi");
   await openView(page, "Catalogo");
   assert.equal(await page.getByLabel("GIOCATORE_C_01 · Da conservare").isChecked(), true);
-  assert.equal(await page.getByText(/Acquistato · I Falchi · 157 crediti/).isVisible(), true);
+  assert.match(await page.getByRole("row", { name: /GIOCATORE_D_01/ }).innerText(), /Acquistato · I Falchi · 157 crediti/);
 
   await page.close();
 });

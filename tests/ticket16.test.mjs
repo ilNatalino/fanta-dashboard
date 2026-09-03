@@ -101,7 +101,7 @@ test("un Ruolo completo è Non acquistabile senza nascondere i riferimenti di me
     true,
   );
   assert.equal(
-    await card.getByText("Non acquistabile", { exact: true }).isVisible(),
+    await card.getByText(/Il ruolo POR è completo nella tua rosa/).isVisible(),
     true,
   );
   const marketSignals = card.getByRole("region", { name: "Segnali di mercato" });

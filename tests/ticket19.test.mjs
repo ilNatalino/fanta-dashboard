@@ -111,6 +111,7 @@ test("il Reset dell'asta richiede conferma e conserva setup e Shortlist eliminan
   await page.getByLabel("Posti DIF").fill("2");
   await page.getByLabel("Posti CEN").fill("1");
   await page.getByLabel("Posti ATT").fill("1");
+  await page.getByText("Parametri di mercato avanzati", { exact: true }).click();
   await page.getByLabel("Soglia di adattamento").fill("3");
   await page.getByLabel("Tolleranza della Percezione storica di mercato (%)").fill("7");
   await page.getByLabel("Nome della Squadra principale").fill("I Falchi");

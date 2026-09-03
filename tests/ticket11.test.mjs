@@ -50,7 +50,7 @@ test("il Catalogo rappresentativo importa 32 calciatori e mostra solo i campi de
     ["Nome", "Squadra reale", "Ruolo", "Slot", "PMA", "PFC", "Fantamedia prevista", "Titolarità prevista", "Shortlist"],
   );
   assert.equal(await page.getByRole("row").count(), 33);
-  assert.equal(await page.getByRole("row", { name: /GIOCATORE_P_01/ }).innerText(), "GIOCATORE_P_01\tCLUB_13\tPOR\t1\t121,5\t105,5\t5,51\t91%\tCrea una categoria");
+  assert.equal(await page.getByRole("row", { name: /GIOCATORE_P_01/ }).innerText(), "GIOCATORE_P_01\tCLUB_13\tPOR\t1\t121,5\t105,5\t5,51\t91%\t-");
   assert.equal(await page.getByText("teamSlug").count(), 0);
 
   await page.close();
