@@ -26,6 +26,7 @@ type CatalogSort = "name" | "team" | "role" | "slot" | "pma" | "pfc" | "expected
 type SortDirection = "ascending" | "descending";
 type CatalogStatus = "available" | "purchased";
 type CorrectionDraft = { playerName: string; teamId: string; price: string };
+type TablerIcon = "sun" | "moon" | "x" | "pencil";
 type AuctionViewState = {
   activeView: ActiveView;
   selectedPlayerName: string | null;
@@ -296,7 +297,9 @@ function render(
     const theme = document.documentElement.dataset.theme === "light" ? "dark" : "light";
     document.documentElement.dataset.theme = theme;
     window.localStorage.setItem(themeStorageKey, theme);
-    button.textContent = theme === "light" ? "Usa tema scuro" : "Usa tema chiaro";
+    const light = theme === "light";
+    button.setAttribute("aria-label", light ? "Usa tema scuro" : "Usa tema chiaro");
+    button.innerHTML = renderTablerIcon(light ? "moon" : "sun");
   });
 
   root.querySelector<HTMLButtonElement>("[data-export-problematic]")
@@ -1256,7 +1259,7 @@ function renderCatalogAvailability(
   const team = state.auction?.teams.find((candidate) => candidate.id === purchase.teamId);
   const context = mobile ? " mobile" : "";
   return `Acquistato · ${escapeHtml(team?.name ?? "Squadra non disponibile")} · ${purchase.finalPrice} crediti
-    <button type="button" data-edit-purchase="${escapeHtml(player.name)}" aria-label="Correggi Acquisto${context} ${escapeHtml(player.name)}">Correggi</button>
+    <button type="button" class="icon-button" data-edit-purchase="${escapeHtml(player.name)}" aria-label="Correggi Acquisto${context} ${escapeHtml(player.name)}">${renderTablerIcon("pencil")}</button>
     <button type="button" data-cancel-purchase="${escapeHtml(player.name)}" aria-label="Annulla Acquisto${context} ${escapeHtml(player.name)}">Annulla</button>
     ${viewState.correctionDraft?.playerName === player.name
       ? renderCorrectionForm(state.auction!, viewState.correctionDraft, operationError, mobile)
@@ -1511,7 +1514,7 @@ function renderRecentPurchase(
         </span>
       </div>
       <div class="recent-purchase-actions">
-        <button type="button" class="secondary-button" data-edit-purchase="${escapeHtml(purchase.playerName)}" aria-label="Correggi Acquisto ${escapeHtml(purchase.playerName)}">Correggi</button>
+        <button type="button" class="icon-button" data-edit-purchase="${escapeHtml(purchase.playerName)}" aria-label="Correggi Acquisto ${escapeHtml(purchase.playerName)}">${renderTablerIcon("pencil")}</button>
         <button type="button" class="danger-button" data-cancel-purchase="${escapeHtml(purchase.playerName)}" aria-label="Annulla Acquisto ${escapeHtml(purchase.playerName)}">Annulla</button>
       </div>
     </aside>
@@ -1776,7 +1779,7 @@ function renderAuctionCard(
           <h3 tabindex="-1" data-player-heading>${escapeHtml(player.name)}</h3>
           <p>${escapeHtml(player.team)} · ${roleNames[player.role]} · Slot ${player.slot}</p>
         </div>
-        <button type="button" class="secondary-button" data-close-auction-card>Chiudi Scheda d’asta</button>
+        <button type="button" class="icon-button" data-close-auction-card aria-label="Chiudi Scheda d’asta">${renderTablerIcon("x")}</button>
       </div>
       ${unavailableToMainTeam
         ? `<p class="unavailable-player">Il ruolo ${roleNames[player.role]} è completo nella tua rosa. Puoi ancora assegnare il calciatore a una Squadra avversaria.</p>`
@@ -2063,5 +2066,9 @@ function renderHeader(viewState?: AuctionViewState, hasCatalog = false): string 
 
 function renderThemeToggle(): string {
   const light = document.documentElement.dataset.theme === "light";
-  return `<button type="button" class="theme-toggle secondary-button" data-theme-toggle>${light ? "Usa tema scuro" : "Usa tema chiaro"}</button>`;
+  return `<button type="button" class="theme-toggle icon-button" data-theme-toggle aria-label="${light ? "Usa tema scuro" : "Usa tema chiaro"}">${renderTablerIcon(light ? "moon" : "sun")}</button>`;
+}
+
+function renderTablerIcon(icon: TablerIcon): string {
+  return `<svg class="icon" aria-hidden="true" focusable="false"><use href="/assets/tabler-icons.svg#tabler-${icon}"></use></svg>`;
 }

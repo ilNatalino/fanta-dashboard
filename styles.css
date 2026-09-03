@@ -284,9 +284,7 @@ button:disabled {
 }
 
 .theme-toggle {
-  min-height: 2.35rem;
-  padding: 0.5rem 0.75rem;
-  white-space: nowrap;
+  flex: 0 0 auto;
 }
 
 .session-status {
@@ -1084,6 +1082,29 @@ select {
   background: var(--control);
 }
 
+.icon-button {
+  display: inline-grid;
+  width: 2.5rem;
+  min-width: 2.5rem;
+  height: 2.5rem;
+  min-height: 2.5rem;
+  place-items: center;
+  padding: 0;
+  color: var(--text-secondary);
+  background: transparent;
+}
+
+.icon-button:not(:disabled):hover {
+  color: var(--accent);
+  background: var(--surface-control);
+  filter: none;
+}
+
+.icon-button .icon {
+  width: 1.25rem;
+  height: 1.25rem;
+}
+
 .player-facts {
   display: grid;
   grid-template-columns: repeat(2, minmax(0, 1fr));
@@ -1729,11 +1750,7 @@ tbody tr:hover th[scope="row"] {
     align-items: start;
   }
 
-  .auction-card-heading {
-    display: grid;
-  }
-
-  .auction-card-heading button {
+  .auction-card-heading button:not(.icon-button) {
     width: 100%;
     white-space: nowrap;
   }
@@ -1742,14 +1759,17 @@ tbody tr:hover th[scope="row"] {
     justify-content: flex-start;
   }
 
-  .recent-purchase-actions button,
+  .recent-purchase-actions button:not(.icon-button),
   .setup-actions button {
     width: 100%;
   }
 
   .recent-purchase-actions {
-    display: grid;
-    grid-template-columns: repeat(2, minmax(0, 1fr));
+    display: flex;
+  }
+
+  .recent-purchase-actions .danger-button {
+    flex: 1;
   }
 
   .recent-purchase-meta {

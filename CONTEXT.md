@@ -129,5 +129,13 @@ Il budget residuo della squadra principale al netto di un credito riservato per 
 _Avoid_: PFC, prezzo adattato all'asta, tetto consigliato
 
 **Scheda d'asta**:
-La vista temporanea del calciatore chiamato, con valutazioni, indicatori, PFC e prezzo adattato all'asta; chiuderla non cambia lo stato del calciatore.
+La vista temporanea del calciatore chiamato, con valutazioni, indicatori, PFC, prezzo adattato all'asta ed eventuale Profilo editoriale SOS Fanta; chiuderla non cambia lo stato del calciatore.
 _Avoid_: Cronologia delle offerte, prezzo corrente
+
+**Profilo editoriale SOS Fanta**:
+Il testo integrale della guida SOS Fanta associato con certezza a uno o più calciatori e conservato nella dashboard per consultazione personale durante l'asta; può essere assente senza rendere incompleto il Catalogo calciatori. Nei consigli condivisi, ciascun calciatore coinvolto riceve lo stesso testo completo.
+_Avoid_: Sintesi automatica, consiglio generato dalla dashboard
+
+**Fascia editoriale SOS Fanta**:
+La categoria qualitativa assegnata da SOS Fanta a uno o più calciatori dello stesso ruolo nella guida all'asta.
+_Avoid_: Slot, ranking della dashboard

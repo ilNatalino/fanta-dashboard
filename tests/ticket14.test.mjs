@@ -71,7 +71,10 @@ test("la ricerca apre e chiude la Scheda d’asta senza modificare il Catalogo",
   assert.match(cardText, /Fantamedia prevista\s+6,96/);
   assert.match(cardText, /Titolarità prevista\s+92%/);
 
-  await card.getByRole("button", { name: "Chiudi Scheda d’asta" }).click();
+  const closeButton = card.getByRole("button", { name: "Chiudi Scheda d’asta" });
+  assert.equal(await closeButton.innerText(), "");
+  assert.deepEqual(await closeButton.boundingBox().then(({ width, height }) => [width, height]), [40, 40]);
+  await closeButton.click();
   assert.equal(await card.getByRole("heading", { name: "GIOCATORE_D_01" }).count(), 0);
   await page.getByRole("navigation", { name: "Navigazione primaria" })
     .getByRole("link", { name: "Catalogo" })
