@@ -56,7 +56,7 @@ For the called player, the application shows:
 - Supports confirmed purchase cancellation, returning the player to availability.
 - Recalculates budgets, roster occupancy, scarcity, rankings, and market signals after every valid change.
 - Provides a role-based main-roster view with spending, budget percentage, occupied positions, free positions, and acquired-slot distribution.
-- Provides opponent-roster views containing only recorded facts: purchases, spending, remaining budget, and role occupancy.
+- Provides a compact all-team roster overview with purchases, remaining budget, maximum spendable amount, role occupancy, and role spending.
 - Marks the auction complete automatically when every team fills every configured role position. There is no separate “close auction” action.
 - Resets auction progress after confirmation while preserving the catalog, setup, team names, and shortlist.
 
@@ -105,7 +105,7 @@ All active purchases participate in the calculation, including purchases made by
 
 ### Maximum spendable
 
-The maximum spendable amount reserves one credit for every other unfilled position in the main roster:
+The maximum spendable amount reserves one credit for every other unfilled position in a team's roster:
 
 ```text
 maximum spendable = remaining budget - other roster positions still to fill

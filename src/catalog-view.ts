@@ -27,6 +27,8 @@ type SortDirection = "ascending" | "descending";
 type CatalogStatus = "available" | "purchased";
 type CorrectionDraft = { playerName: string; teamId: string; price: string };
 type TablerIcon = "sun" | "moon" | "x" | "pencil";
+export type SosFantaProfile = { tier: string; text: string };
+export type SosFantaProfiles = Readonly<Record<string, SosFantaProfile>>;
 type AuctionViewState = {
   activeView: ActiveView;
   selectedPlayerName: string | null;
@@ -49,6 +51,7 @@ type AuctionViewState = {
   catalogStatuses: CatalogStatus[];
   catalogSort: CatalogSort;
   catalogSortDirection: SortDirection;
+  sosFantaProfiles: SosFantaProfiles;
 };
 
 const catalogColumns: Array<{
@@ -69,7 +72,7 @@ const catalogColumns: Array<{
   { key: "expectedTitolarita", label: "Titolarità prevista", numeric: true, firstDirection: "descending", render: (player) => `${numberFormatter.format(player.expectedTitolarita)}%` },
 ];
 
-export function mountCatalogApp(root: HTMLElement): void {
+export function mountCatalogApp(root: HTMLElement, sosFantaProfiles: SosFantaProfiles = {}): void {
   const storedTheme = window.localStorage.getItem(themeStorageKey);
   document.documentElement.dataset.theme = storedTheme === "light" ? "light" : "dark";
   const application = new CatalogApplication(new BrowserStateStorage());
@@ -95,6 +98,7 @@ export function mountCatalogApp(root: HTMLElement): void {
     catalogStatuses: [],
     catalogSort: "pfc",
     catalogSortDirection: "descending",
+    sosFantaProfiles,
   };
   render(root, application, viewState);
   bindKeyboardShortcuts(root, application, viewState);
@@ -1404,7 +1408,7 @@ function renderActiveAuction(
         )
       : viewState.activeView === "my-team"
       ? renderMyRoster(state, auction)
-      : renderOpponentTeams(state, auction);
+      : renderTeams(state, auction);
     return `
       <div class="shell shell-wide active-shell">
         ${renderActiveHeader(state, auction, viewState)}
@@ -1530,96 +1534,97 @@ function renderMyRoster(
   const rolePurchases = (role: ClassicRole) => mainTeamPurchases.filter(
     ({ player }) => player.role === role,
   );
+  const maxRoleSlots = Math.max(...Object.values(auction.configuration.rosterSlots));
 
   return `
     <section class="roster-view" aria-labelledby="my-roster-title">
-      <div class="active-heading">
-        <p class="eyebrow">Squadra principale</p>
-        <h1 id="my-roster-title">La mia rosa</h1>
-        <p>Composizione e spesa di ${escapeHtml(mainTeam.name)}, organizzate per Ruolo Classic.</p>
-      </div>
+      <h1 id="my-roster-title" class="visually-hidden">La mia rosa</h1>
       <div class="roster-columns">
         ${Object.entries(roleNames).map(([roleValue, roleName]) => {
           const role = roleValue as ClassicRole;
-          const purchases = rolePurchases(role);
+          const purchases = rolePurchases(role)
+            .sort(({ player: leftPlayer, purchase: leftPurchase }, { player: rightPlayer, purchase: rightPurchase }) =>
+              rightPurchase.finalPrice - leftPurchase.finalPrice
+              || leftPlayer.name.localeCompare(rightPlayer.name, "it-IT"),
+            );
           const spent = purchases.reduce((total, { purchase }) => total + purchase.finalPrice, 0);
           const occupied = purchases.length;
           const total = auction.configuration.rosterSlots[role];
-          const free = total - occupied;
           const percentage = spent / auction.configuration.initialBudget * 100;
           return `
-            <section class="card roster-role" data-roster-role aria-label="Rosa ${roleName}">
-              <h2>${roleName}</h2>
-              <dl class="roster-role-facts">
-                <div><dt>Crediti spesi</dt><dd>${numberFormatter.format(spent)} crediti</dd></div>
-                <div><dt>Percentuale del budget iniziale comune</dt><dd>${numberFormatter.format(percentage)}%</dd></div>
-                <div><dt>Posti di ruolo</dt><dd>${occupied}/${total} occupati</dd></div>
-              </dl>
-              ${purchases.length > 0
-                ? `<ul class="roster-purchases" aria-label="Acquisti ${roleName}">${purchases.map(({ player, purchase }) => `<li>${escapeHtml(player.name)} · ${escapeHtml(player.team)} · Slot ${player.slot} · ${numberFormatter.format(purchase.finalPrice)} crediti</li>`).join("")}</ul>`
-                : "<p>Nessun calciatore acquistato.</p>"}
-              <p class="free-roster-slots">${free} ${free === 1 ? "posto libero" : "posti liberi"}</p>
+            <section class="card roster-role" data-roster-role style="--team-role-slots: ${maxRoleSlots}" aria-label="Rosa ${roleName}">
+              <header class="team-role-heading">
+                <h2>${roleName}</h2>
+                <span aria-label="${numberFormatter.format(spent)} crediti spesi">${numberFormatter.format(spent)}</span>
+                <span aria-label="${numberFormatter.format(percentage)} percento del budget">${numberFormatter.format(percentage)}%</span>
+                <span aria-label="${occupied} di ${total} posti occupati">${occupied}/${total}</span>
+              </header>
+              <ul class="team-role-purchases" aria-label="Acquisti ${roleName}">${purchases.map(({ player, purchase }) => `<li><span title="${escapeHtml(player.name)}">${escapeHtml(player.name)}</span><strong aria-label="${numberFormatter.format(purchase.finalPrice)} crediti">${numberFormatter.format(purchase.finalPrice)}</strong></li>`).join("")}</ul>
             </section>
           `;
         }).join("")}
       </div>
-      <section class="card acquired-slot-distribution" aria-label="Distribuzione degli Slot acquisiti">
-        <h2>Distribuzione degli Slot acquisiti</h2>
-        <div class="acquired-slot-roles">
-          ${Object.entries(roleNames).map(([roleValue, roleName]) => {
-            const purchases = rolePurchases(roleValue as ClassicRole);
-            const slots = [...new Set(purchases.map(({ player }) => player.slot))]
-              .sort((left, right) => left - right);
-            return `
-              <section aria-label="Slot acquisiti ${roleName}">
-                <h3>${roleName}</h3>
-                ${slots.length > 0
-                  ? `<ul aria-label="Slot acquisiti ${roleName}">${slots.map((slot) => {
-                      const count = purchases.filter(({ player }) => player.slot === slot).length;
-                      return `<li>Slot ${slot} · ${count} ${count === 1 ? "calciatore" : "calciatori"}</li>`;
-                    }).join("")}</ul>`
-                  : "<p>Nessuno Slot acquisito.</p>"}
-              </section>
-            `;
-          }).join("")}
-        </div>
-      </section>
     </section>
   `;
 }
 
-function renderOpponentTeams(
+function renderTeams(
   state: Readonly<AppState>,
   auction: Readonly<ActiveAuction>,
 ): string {
+  const totalRosterSlots = Object.values(auction.configuration.rosterSlots)
+    .reduce((total, slots) => total + slots, 0);
   return `
-    <section class="opponent-teams-view" aria-labelledby="opponent-teams-title">
-      <div class="active-heading">
-        <p class="eyebrow">Partecipanti all’Asta attiva</p>
-        <h1 id="opponent-teams-title">Squadre</h1>
-        <p>Consulta le rose avversarie usando soltanto gli Acquisti registrati.</p>
-      </div>
-      <div class="opponent-team-list">
-        ${auction.teams.filter((team) => !team.isMain).map((team) => {
+    <section class="teams-view" aria-labelledby="teams-title">
+      <h1 id="teams-title" class="visually-hidden">Squadre</h1>
+      <div class="team-card-grid">
+        ${auction.teams.map((team) => {
           const purchases = purchasesWithPlayersForTeam(state.catalog, auction, team.id);
           const remainingBudget = remainingTeamBudget(auction, team.id);
-          const spent = auction.configuration.initialBudget - remainingBudget;
           return `
-            <details class="card opponent-team" data-opponent-team="${escapeHtml(team.id)}">
-              <summary>${escapeHtml(team.name)}</summary>
-              <dl class="opponent-budget">
-                <div><dt>Budget residuo</dt><dd>${numberFormatter.format(remainingBudget)} crediti</dd></div>
-                <div><dt>Crediti spesi</dt><dd>${numberFormatter.format(spent)} crediti</dd></div>
+            <article
+              class="card team-roster-card${team.isMain ? " team-roster-card-main" : ""}"
+              data-team-roster="${escapeHtml(team.id)}"
+              aria-label="${team.isMain ? "Squadra principale" : "Squadra"} ${escapeHtml(team.name)}"
+            >
+              <header class="team-roster-heading">
+                <h2 title="${escapeHtml(team.name)}">${escapeHtml(team.name)}</h2>
+              </header>
+              <dl class="team-roster-summary">
+                <div><dt aria-label="Budget residuo">Residuo</dt><dd aria-label="${numberFormatter.format(remainingBudget)} crediti residui">${numberFormatter.format(remainingBudget)}</dd></div>
+                <div><dt aria-label="Massimo spendibile">Max</dt><dd aria-label="${numberFormatter.format(maximumSpendable(auction, team.id))} crediti spendibili">${numberFormatter.format(maximumSpendable(auction, team.id))}</dd></div>
+                <div><dt aria-label="Posti della rosa"><span aria-hidden="true">Rosa</span></dt><dd aria-label="${purchases.length} di ${totalRosterSlots} posti occupati">${purchases.length}/${totalRosterSlots}</dd></div>
               </dl>
-              <h2>Posti di ruolo</h2>
-              <ul class="opponent-role-slots" aria-label="Posti di ruolo ${escapeHtml(team.name)}">
-                ${Object.entries(roleNames).map(([roleValue, roleName]) => `<li>${roleName} ${occupiedTeamRoleSlots(auction, state.catalog, team.id, roleValue as ClassicRole)}/${auction.configuration.rosterSlots[roleValue as ClassicRole]}</li>`).join("")}
-              </ul>
-              <h2>Acquisti registrati</h2>
-              ${purchases.length > 0
-                ? `<ul class="opponent-purchases" aria-label="Acquisti ${escapeHtml(team.name)}">${purchases.map(({ player, purchase }) => `<li>${escapeHtml(player.name)} · ${roleNames[player.role]} · ${numberFormatter.format(purchase.finalPrice)} crediti</li>`).join("")}</ul>`
-                : "<p>Nessun Acquisto registrato.</p>"}
-            </details>
+              <div class="team-role-list">
+                ${Object.entries(roleNames).map(([roleValue, roleName]) => {
+                  const role = roleValue as ClassicRole;
+                  const rolePurchases = purchases
+                    .filter(({ player }) => player.role === role)
+                    .sort(({ player: leftPlayer, purchase: leftPurchase }, { player: rightPlayer, purchase: rightPurchase }) =>
+                      rightPurchase.finalPrice - leftPurchase.finalPrice
+                      || leftPlayer.name.localeCompare(rightPlayer.name, "it-IT"),
+                    );
+                  const spent = rolePurchases.reduce(
+                    (total, { purchase }) => total + purchase.finalPrice,
+                    0,
+                  );
+                  const percentage = spent / auction.configuration.initialBudget * 100;
+                  const occupied = rolePurchases.length;
+                  const total = auction.configuration.rosterSlots[role];
+                  return `
+                    <section class="team-role" style="--team-role-slots: ${total}" aria-label="${roleName} di ${escapeHtml(team.name)}">
+                      <header class="team-role-heading">
+                        <h3>${roleName}</h3>
+                        <span aria-label="${numberFormatter.format(spent)} crediti spesi">${numberFormatter.format(spent)}</span>
+                        <span aria-label="${numberFormatter.format(percentage)} percento del budget">${numberFormatter.format(percentage)}%</span>
+                        <span aria-label="${occupied} di ${total} posti occupati">${occupied}/${total}</span>
+                      </header>
+                      <ul class="team-role-purchases" aria-label="Acquisti ${roleName} di ${escapeHtml(team.name)}">${rolePurchases.map(({ player, purchase }) => `<li><span title="${escapeHtml(player.name)}">${escapeHtml(player.name)}</span><strong aria-label="${numberFormatter.format(purchase.finalPrice)} crediti">${numberFormatter.format(purchase.finalPrice)}</strong></li>`).join("")}</ul>
+                    </section>
+                  `;
+                }).join("")}
+              </div>
+            </article>
           `;
         }).join("")}
       </div>
@@ -1771,13 +1776,14 @@ function renderAuctionCard(
   const signedAuctionDeviation = adaptation
     ? `${adaptation.deviationPercent > 0 ? "+" : ""}${adaptation.deviationPercent}%`
     : "";
+  const profile = viewState.sosFantaProfiles[player.name];
 
   return `
     <article class="auction-card">
       <div class="auction-card-heading">
         <div>
           <h3 tabindex="-1" data-player-heading>${escapeHtml(player.name)}</h3>
-          <p>${escapeHtml(player.team)} · ${roleNames[player.role]} · Slot ${player.slot}</p>
+          <p>${escapeHtml(player.team)} · ${roleNames[player.role]} · Slot ${player.slot}${profile ? ` · <span class="sos-fanta-tier">${escapeHtml(profile.tier)}</span>` : ""}</p>
         </div>
         <button type="button" class="icon-button" data-close-auction-card aria-label="Chiudi Scheda d’asta">${renderTablerIcon("x")}</button>
       </div>
@@ -1819,6 +1825,12 @@ function renderAuctionCard(
           </section>
         </div>
       </section>
+      ${profile?.text ? `
+        <details class="sos-fanta-profile">
+          <summary>Profilo SOS Fanta</summary>
+          <p>${escapeHtml(profile.text)}</p>
+        </details>
+      ` : ""}
       <button type="button" data-open-purchase>Assegna giocatore</button>
       ${viewState.assignmentOpen
         ? renderPurchaseForm(auction, state.catalog, player, viewState, operationError)

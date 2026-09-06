@@ -262,12 +262,14 @@ test("il tema chiaro è selezionabile e persiste al refresh", async () => {
   const page = await browser.newPage();
   await page.goto(server.url);
 
-  const themeToggle = page.getByRole("button", { name: "Usa tema chiaro" });
+  const themeToggle = page.locator("[data-theme-toggle]");
+  assert.equal(await themeToggle.getAttribute("aria-label"), "Usa tema chiaro");
   assert.equal(await themeToggle.innerText(), "");
   assert.deepEqual(await themeToggle.boundingBox().then(({ width, height }) => [width, height]), [40, 40]);
   assert.equal(await themeToggle.locator("use").getAttribute("href"), "/assets/tabler-icons.svg#tabler-sun");
   await themeToggle.click();
   assert.equal(await page.locator("html").getAttribute("data-theme"), "light");
+  assert.equal(await themeToggle.getAttribute("aria-label"), "Usa tema scuro");
   assert.equal(await themeToggle.locator("use").getAttribute("href"), "/assets/tabler-icons.svg#tabler-moon");
   await page.reload();
   assert.equal(await page.locator("html").getAttribute("data-theme"), "light");

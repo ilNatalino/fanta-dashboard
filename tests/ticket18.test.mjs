@@ -56,13 +56,19 @@ test("la navigazione primaria apre le tre viste e mantiene ricerca e riepilogo n
   assert.equal(await navigation.getByRole("link", { name: "Asta" }).getAttribute("aria-current"), "page");
   assert.equal(await header.getByLabel("Cerca il Calciatore chiamato").isVisible(), true);
   assert.match(await header.getByRole("group", { name: "Riepilogo I Falchi" }).innerText(), /1\.000 crediti residui[\s\S]*0\/25 posti/);
+  assert.equal(
+    await page.locator(".active-topbar + *").evaluate((content) => getComputedStyle(content).marginTop),
+    "24px",
+  );
 
   await navigation.getByRole("link", { name: "La mia rosa" }).click();
-  assert.equal(await page.getByRole("heading", { name: "La mia rosa", exact: true }).isVisible(), true);
+  assert.equal(await page.locator(".roster-view > .active-heading").count(), 0);
+  assert.equal(await page.locator("#my-roster-title").getAttribute("class"), "visually-hidden");
   assert.equal(await header.getByLabel("Cerca il Calciatore chiamato").isVisible(), true);
 
   await navigation.getByRole("link", { name: "Squadre" }).click();
-  assert.equal(await page.getByRole("heading", { name: "Squadre", exact: true }).isVisible(), true);
+  assert.equal(await page.locator(".teams-view > .active-heading").count(), 0);
+  assert.equal(await page.locator("#teams-title").getAttribute("class"), "visually-hidden");
   assert.equal(await header.getByRole("group", { name: "Riepilogo I Falchi" }).isVisible(), true);
 
   await header.getByLabel("Cerca il Calciatore chiamato").fill("GIOCATORE_D_01");
@@ -73,7 +79,7 @@ test("la navigazione primaria apre le tre viste e mantiene ricerca e riepilogo n
   await page.close();
 });
 
-test("La mia rosa raggruppa gli Acquisti per Ruolo e separa la distribuzione degli Slot", async () => {
+test("La mia rosa usa card di Ruolo compatte e senza distribuzione degli Slot", async () => {
   const page = await openActiveAuction();
   await assignPlayer(page, "GIOCATORE_D_01", "main", 120);
   await assignPlayer(page, "GIOCATORE_D_02", "main", 50);
@@ -83,74 +89,128 @@ test("La mia rosa raggruppa gli Acquisti per Ruolo e separa la distribuzione deg
     .click();
 
   assert.deepEqual(
-    await page.locator("[data-roster-role] > h2").allTextContents(),
+    await page.locator("[data-roster-role] .team-role-heading > h2").allTextContents(),
     ["POR", "DIF", "CEN", "ATT"],
   );
   const defenders = page.getByRole("region", { name: "Rosa DIF" });
-  assert.match(await defenders.innerText(), /Crediti spesi\s+170 crediti/);
-  assert.match(await defenders.innerText(), /Percentuale del budget iniziale comune\s+17%/);
-  assert.match(await defenders.innerText(), /Posti di ruolo\s+2\/8 occupati/);
+  assert.deepEqual(await defenders.locator(".team-role-heading span").allTextContents(), ["170", "17%", "2/8"]);
   assert.deepEqual(
-    await defenders.getByRole("list", { name: "Acquisti DIF" }).getByRole("listitem").allTextContents(),
-    [
-      "GIOCATORE_D_01 · CLUB_06 · Slot 1 · 120 crediti",
-      "GIOCATORE_D_02 · CLUB_16 · Slot 2 · 50 crediti",
-    ],
+    await defenders.getByRole("list", { name: "Acquisti DIF" }).locator("li > span").allTextContents(),
+    ["GIOCATORE_D_01", "GIOCATORE_D_02"],
   );
-  assert.equal(await defenders.getByText("6 posti liberi", { exact: true }).isVisible(), true);
+  assert.deepEqual(
+    await defenders.getByRole("list", { name: "Acquisti DIF" }).locator("li > strong").allTextContents(),
+    ["120", "50"],
+  );
 
   const goalkeepers = page.getByRole("region", { name: "Rosa POR" });
-  assert.match(await goalkeepers.innerText(), /Crediti spesi\s+0 crediti/);
-  assert.match(await goalkeepers.innerText(), /Posti di ruolo\s+0\/3 occupati/);
-  assert.equal(await goalkeepers.getByText("3 posti liberi", { exact: true }).isVisible(), true);
+  assert.deepEqual(await goalkeepers.locator(".team-role-heading span").allTextContents(), ["0", "0%", "0/3"]);
+  assert.equal(await goalkeepers.getByRole("listitem").count(), 0);
 
-  const acquiredSlots = page.getByRole("region", { name: "Distribuzione degli Slot acquisiti" });
-  assert.deepEqual(
-    await acquiredSlots.getByRole("list", { name: "Slot acquisiti DIF" }).getByRole("listitem").allTextContents(),
-    ["Slot 1 · 1 calciatore", "Slot 2 · 1 calciatore"],
+  assert.equal(await page.getByText("posti liberi", { exact: false }).count(), 0);
+  assert.equal(await page.getByRole("region", { name: "Distribuzione degli Slot acquisiti" }).count(), 0);
+  assert.equal(
+    await page.locator("[data-roster-role]").evaluateAll((cards) =>
+      new Set(cards.map((card) => Math.round(card.getBoundingClientRect().height))).size,
+    ),
+    1,
   );
-  assert.equal(await page.getByText("Scarsità per slot").count(), 0);
+
+  await page.setViewportSize({ width: 1000, height: 720 });
+  assert.equal(
+    await page.locator(".roster-columns").evaluate((grid) =>
+      getComputedStyle(grid).gridTemplateColumns.split(" ").length,
+    ),
+    2,
+  );
+  await page.setViewportSize({ width: 700, height: 720 });
+  assert.equal(
+    await page.locator(".roster-columns").evaluate((grid) =>
+      getComputedStyle(grid).gridTemplateColumns.split(" ").length,
+    ),
+    1,
+  );
+  assert.equal(
+    await page.locator(".active-topbar + *").evaluate((content) => getComputedStyle(content).marginTop),
+    "16px",
+  );
 
   await page.close();
 });
 
-test("Squadre elenca tutte le Squadre avversarie e ne apre la rosa con i soli fatti registrati", async () => {
+test("Squadre confronta tutte le rose in card sempre aperte e raggruppate per Ruolo", async () => {
   const page = await openActiveAuction();
   await assignPlayer(page, "GIOCATORE_D_01", "opponent-2", 157);
   await assignPlayer(page, "GIOCATORE_P_01", "opponent-2", 100);
+  await assignPlayer(page, "GIOCATORE_D_02", "opponent-2", 50);
   await assignPlayer(page, "GIOCATORE_C_01", "opponent-3", 200);
+  await assignPlayer(page, "GIOCATORE_P_02", "main", 60);
 
   await page.getByRole("navigation", { name: "Navigazione primaria" })
     .getByRole("link", { name: "Squadre" })
     .click();
 
   assert.deepEqual(
-    await page.locator("[data-opponent-team] > summary").allTextContents(),
-    ["Squadra 2", "Squadra 3", "Squadra 4"],
-  );
-
-  const team = page.locator('[data-opponent-team="opponent-2"]');
-  assert.equal(await team.getAttribute("open"), null);
-  await team.locator("summary").click();
-  assert.equal(await team.getAttribute("open"), "");
-  assert.match(await team.innerText(), /Budget residuo\s+743 crediti/);
-  assert.match(await team.innerText(), /Crediti spesi\s+257 crediti/);
-  assert.deepEqual(
-    await team.getByRole("list", { name: "Posti di ruolo Squadra 2" }).getByRole("listitem").allTextContents(),
-    ["POR 1/3", "DIF 1/8", "CEN 0/8", "ATT 0/6"],
-  );
-  assert.deepEqual(
-    await team.getByRole("list", { name: "Acquisti Squadra 2" }).getByRole("listitem").allTextContents(),
-    ["GIOCATORE_D_01 · DIF · 157 crediti", "GIOCATORE_P_01 · POR · 100 crediti"],
+    await page.locator("[data-team-roster]").evaluateAll((cards) =>
+      cards.map((card) => card.getAttribute("data-team-roster")),
+    ),
+    ["main", "opponent-2", "opponent-3", "opponent-4"],
   );
   assert.equal(
-    await team.getByText(/PFC|PMA|Scarsità|Prezzo adattato|Massimo spendibile/).count(),
-    0,
+    await page.locator(".team-card-grid").evaluate((grid) =>
+      getComputedStyle(grid).gridTemplateColumns.split(" ").length,
+    ),
+    4,
   );
 
-  const emptyTeam = page.locator('[data-opponent-team="opponent-4"]');
-  await emptyTeam.locator("summary").click();
-  assert.equal(await emptyTeam.getByText("Nessun Acquisto registrato.", { exact: true }).isVisible(), true);
+  const mainTeam = page.locator('[data-team-roster="main"]');
+  assert.equal(await mainTeam.getAttribute("aria-label"), "Squadra principale I Falchi");
+  assert.deepEqual(await mainTeam.locator(".team-roster-summary dt").allTextContents(), ["Residuo", "Max", "Rosa"]);
+  assert.deepEqual(await mainTeam.locator(".team-roster-summary dd").allTextContents(), ["940", "917", "1/25"]);
+
+  const team = page.locator('[data-team-roster="opponent-2"]');
+  assert.deepEqual(await team.locator(".team-roster-summary dd").allTextContents(), ["693", "672", "3/25"]);
+  assert.deepEqual(
+    await team.getByRole("heading", { level: 3 }).allTextContents(),
+    ["POR", "DIF", "CEN", "ATT"],
+  );
+  const defenders = team.getByRole("region", { name: "DIF di Squadra 2" });
+  assert.deepEqual(await defenders.locator(".team-role-heading span").allTextContents(), ["207", "20,7%", "2/8"]);
+  assert.deepEqual(
+    await defenders.getByRole("list", { name: "Acquisti DIF di Squadra 2" }).locator("li > span").allTextContents(),
+    ["GIOCATORE_D_01", "GIOCATORE_D_02"],
+  );
+  assert.deepEqual(
+    await defenders.getByRole("list", { name: "Acquisti DIF di Squadra 2" }).locator("li > strong").allTextContents(),
+    ["157", "50"],
+  );
+  const midfielders = team.getByRole("region", { name: "CEN di Squadra 2" });
+  assert.deepEqual(await midfielders.locator(".team-role-heading span").allTextContents(), ["0", "0%", "0/8"]);
+  assert.equal(await midfielders.getByRole("listitem").count(), 0);
+  assert.equal(await team.getByText("Nessun acquisto", { exact: true }).count(), 0);
+  assert.equal(await team.getByRole("button").count(), 0);
+
+  assert.equal(
+    await page.locator("[data-team-roster]").evaluateAll((cards) =>
+      new Set(cards.map((card) => Math.round(card.getBoundingClientRect().height))).size,
+    ),
+    1,
+  );
+
+  await page.setViewportSize({ width: 1000, height: 720 });
+  assert.equal(
+    await page.locator(".team-card-grid").evaluate((grid) =>
+      getComputedStyle(grid).gridTemplateColumns.split(" ").length,
+    ),
+    2,
+  );
+  await page.setViewportSize({ width: 700, height: 720 });
+  assert.equal(
+    await page.locator(".team-card-grid").evaluate((grid) =>
+      getComputedStyle(grid).gridTemplateColumns.split(" ").length,
+    ),
+    1,
+  );
 
   await page.close();
 });

@@ -125,8 +125,8 @@ Il PFC di un calciatore moltiplicato per la mediana dei rapporti tra prezzo fina
 _Avoid_: PFC, PMA, prezzo finale
 
 **Massimo spendibile**:
-Il budget residuo della squadra principale al netto di un credito riservato per ciascun altro posto ancora da riempire.
-_Avoid_: PFC, prezzo adattato all'asta, tetto consigliato
+Il budget residuo di una squadra al netto di un credito riservato per ciascun altro posto ancora da riempire; è un indicatore consultivo applicabile a tutte le squadre.
+_Avoid_: Offerta massima, PFC, prezzo adattato all'asta, tetto consigliato
 
 **Scheda d'asta**:
 La vista temporanea del calciatore chiamato, con valutazioni, indicatori, PFC, prezzo adattato all'asta ed eventuale Profilo editoriale SOS Fanta; chiuderla non cambia lo stato del calciatore.

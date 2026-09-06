@@ -85,9 +85,8 @@ test("l'Asta diventa completa naturalmente e le rose finali restano consultabili
   await page.getByRole("navigation", { name: "Navigazione primaria" })
     .getByRole("link", { name: "Squadre" })
     .click();
-  const opponent = page.locator('[data-opponent-team="opponent-2"]');
-  await opponent.locator("summary").click();
-  assert.equal(await opponent.getByRole("list", { name: "Acquisti I Lupi" }).getByRole("listitem").count(), 4);
+  const opponent = page.locator('[data-team-roster="opponent-2"]');
+  assert.equal(await opponent.locator(".team-role-purchases li").count(), 4);
 
   await page.reload();
   assert.equal(await page.getByRole("heading", { name: "Asta completa" }).isVisible(), true);
