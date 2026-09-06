@@ -1,0 +1,8 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" role="img" aria-labelledby="title">
+  <title id="title">Asta Fantacalcio</title>
+  <rect width="512" height="512" rx="112" fill="#0e1512"/>
+  <rect x="30" y="30" width="452" height="452" rx="88" fill="none" stroke="#bff36b" stroke-width="20"/>
+  <path d="M142 112h239v76H226v62h130v74H226v112h-84z" fill="#f5f4ef"/>
+  <circle cx="382" cy="386" r="48" fill="#bff36b"/>
+  <path d="m382 354 19 14-7 23h-24l-7-23zm-31 20-17 13 7 23 20 12 9-31zm62 0 17 13-7 23-20 12-9-31z" fill="#102117"/>
+</svg>

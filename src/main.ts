@@ -15,7 +15,7 @@ function profilesFrom(value: unknown): SosFantaProfiles {
 
 async function loadSosFantaProfiles(): Promise<SosFantaProfiles> {
   try {
-    const response = await fetch("/sos-fanta-profiles.json");
+    const response = await fetch("./sos-fanta-profiles.json");
     if (!response.ok) throw new Error(`HTTP ${response.status}`);
     return profilesFrom(await response.json());
   } catch (error) {
@@ -24,6 +24,20 @@ async function loadSosFantaProfiles(): Promise<SosFantaProfiles> {
   }
 }
 
+function registerServiceWorker(): void {
+  if (!("serviceWorker" in navigator)) return;
+
+  const register = () => {
+    void navigator.serviceWorker.register("./service-worker.js").catch((error) => {
+      console.warn("Modalità offline non disponibile; la dashboard resta utilizzabile online.", error);
+    });
+  };
+
+  if (document.readyState === "complete") register();
+  else window.addEventListener("load", register, { once: true });
+}
+
 const root = document.querySelector<HTMLElement>("#app");
 if (!root) throw new Error("Contenitore dell'applicazione non trovato");
 mountCatalogApp(root, await loadSosFantaProfiles());
+registerServiceWorker();

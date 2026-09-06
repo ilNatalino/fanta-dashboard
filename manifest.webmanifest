@@ -1,0 +1,24 @@
+{
+  "id": "./",
+  "name": "Asta Fantacalcio",
+  "short_name": "Fanta",
+  "description": "Dashboard locale per preparare e seguire un'asta di Fantacalcio Classic.",
+  "lang": "it",
+  "start_url": "./index.html",
+  "scope": "./",
+  "display": "standalone",
+  "background_color": "#0e1512",
+  "theme_color": "#0e1512",
+  "icons": [
+    {
+      "src": "./assets/app-icon-192.png",
+      "sizes": "192x192",
+      "type": "image/png"
+    },
+    {
+      "src": "./assets/app-icon-512.png",
+      "sizes": "512x512",
+      "type": "image/png"
+    }
+  ]
+}

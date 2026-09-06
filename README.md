@@ -126,6 +126,20 @@ The storage adapter keeps the current state and the previous valid copy:
 
 Browser persistence is limited to the same device, browser, and profile. Use the JSON backup to transfer or preserve data manually.
 
+## Install the released app
+
+The production dashboard is distributed as an installable Progressive Web App through GitHub Pages. It requires no account, login, Node.js installation, or local server.
+
+1. Open `https://ilNatalino.github.io/fanta-dashboard/` in Google Chrome or Microsoft Edge.
+2. Use the browser's **Install Asta Fantacalcio** action.
+3. Launch the dashboard from the operating system's application menu, Dock, or desktop shortcut.
+
+The first complete visit requires a network connection. Afterwards the installed dashboard, including the **Profili editoriali SOS Fanta**, can be reopened offline. Safari 17 or later on macOS can use **File > Add to Dock**; browsers without desktop PWA installation can still use the website normally.
+
+The **Catalogo calciatori**, **Configurazione d’asta**, each **Squadra**, the **Shortlist**, and the **Asta attiva** remain in the local browser profile and are not uploaded by the application. Clearing site data, using private browsing, removing the browser profile, or changing the public site origin can make that state unavailable. Export a **Backup locale** regularly and always before moving to another URL or device.
+
+Updates download in the background without reloading an **Asta attiva**. Close every dashboard window and reopen it to use the newly published version.
+
 ## CSV format
 
 The CSV header must contain each of these fields exactly once:
@@ -179,6 +193,18 @@ npm test
 
 The test suite uses Node's built-in test runner and Playwright. It covers the application through its public behavior, including CSV import, configuration, shortlist management, live-auction workflows, price adaptation, roster views, reset, backup, persistence failures, and corrupted-state recovery. The environment running the suite must allow local loopback servers and headless Chrome processes.
 
+### Build and release the PWA
+
+Build the same static artifact used by GitHub Pages:
+
+```bash
+npm run build:pwa
+```
+
+The command recreates `_site/` with only the production files. To inspect it locally, serve that directory over HTTP; opening `index.html` directly with a `file:` URL does not exercise service workers.
+
+The GitHub Pages workflow runs typechecking and the full test suite before building `_site/`. It uses the commit SHA as the cache version and deploys only after all checks pass. Before the first release, select **GitHub Actions** as the Pages source in the repository settings. Every subsequent push to `main` publishes a new version automatically; the workflow can also be started manually.
+
 ## Repository structure
 
 ```text
@@ -191,6 +217,9 @@ The test suite uses Node's built-in test runner and Playwright. It covers the ap
 │   ├── browser-storage.ts        # localStorage adapter with current and previous copies
 │   └── main.ts                   # Application bootstrap
 ├── scripts/serve.mjs             # Local static server used by development and tests
+├── scripts/build-pwa.mjs         # Production PWA artifact builder
+├── manifest.webmanifest          # Install metadata and application icons
+├── pwa/service-worker.js         # Offline app-shell template
 ├── tests/                        # Application and Playwright end-to-end tests
 ├── CONTEXT.md                    # Canonical Fantacalcio domain vocabulary
 └── .scratch/fanta-mvp/           # MVP decisions, specification, fixtures, and throwaway prototypes

@@ -70,7 +70,7 @@ test("la Correzione dell'acquisto è precompilata e aggiorna Squadra, prezzo, bu
   const editButton = row.getByRole("button", { name: "Correggi Acquisto GIOCATORE_D_01" });
   assert.equal(await editButton.innerText(), "");
   assert.deepEqual(await editButton.boundingBox().then(({ width, height }) => [width, height]), [40, 40]);
-  assert.equal(await editButton.locator("use").getAttribute("href"), "/assets/tabler-icons.svg#tabler-pencil");
+  assert.equal(await editButton.locator("use").getAttribute("href"), "./assets/tabler-icons.svg#tabler-pencil");
   await editButton.click();
 
   const correction = row.getByRole("form", { name: "Correzione dell’acquisto GIOCATORE_D_01" });

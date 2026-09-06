@@ -2082,5 +2082,5 @@ function renderThemeToggle(): string {
 }
 
 function renderTablerIcon(icon: TablerIcon): string {
-  return `<svg class="icon" aria-hidden="true" focusable="false"><use href="/assets/tabler-icons.svg#tabler-${icon}"></use></svg>`;
+  return `<svg class="icon" aria-hidden="true" focusable="false"><use href="./assets/tabler-icons.svg#tabler-${icon}"></use></svg>`;
 }
