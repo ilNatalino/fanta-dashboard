@@ -192,8 +192,8 @@ function renderImportForm(
   operationError = "",
 ): string {
   return `
-    <form class="card import-card" data-import-form>
-      <h2>${compact ? "Catalogo aggiornato" : "File del provider"}</h2>
+    <form class="card import-card" data-import-form aria-labelledby="catalog-import-form-title">
+      <h2 id="catalog-import-form-title">${compact ? "Catalogo aggiornato" : "File del provider"}</h2>
       <p>${compact ? "Il file viene validato per intero prima di chiedere conferma e sostituire il Catalogo corrente." : "Il Catalogo calciatori è necessario prima di configurare l’Asta attiva."}</p>
       <label class="file-label">
         Seleziona CSV

@@ -184,6 +184,45 @@ test("l'artefatto PWA è installabile da un percorso non-root", async () => {
   await context.close();
 });
 
+test("tipografia e tema selezionato restano disponibili offline", async () => {
+  const context = await browser.newContext();
+  let page = await openControlledPage(context);
+  await page.evaluate(() => document.fonts.ready);
+  await page.getByRole("button", { name: "Usa tema chiaro" }).click();
+
+  await page.close();
+  await context.setOffline(true);
+  page = await context.newPage();
+  await page.goto(appUrl);
+  await page.evaluate(() => document.fonts.ready);
+
+  assert.deepEqual(
+    await page.evaluate(async () => {
+      const fontResponse = await fetch("./assets/fonts/barlow-latin-400.woff2");
+      return {
+        bodyFont: getComputedStyle(document.body).fontFamily,
+        fontAvailable: document.fonts.check('400 16px "Barlow"'),
+        fontResponseOk: fontResponse.ok,
+        fontResponseType: fontResponse.headers.get("content-type"),
+      };
+    }),
+    {
+      bodyFont: "Barlow, system-ui, sans-serif",
+      fontAvailable: true,
+      fontResponseOk: true,
+      fontResponseType: "font/woff2",
+    },
+  );
+  assert.equal(
+    await page.getByRole("heading", { name: "Importa il Catalogo calciatori" })
+      .evaluate((element) => getComputedStyle(element).fontFamily),
+    '"Barlow Semi Condensed", Barlow, system-ui, sans-serif',
+  );
+  assert.equal(await page.getByRole("button", { name: "Usa tema scuro" }).isVisible(), true);
+
+  await context.close();
+});
+
 test("l'Asta attiva resta disponibile dopo la riapertura offline", async () => {
   const context = await browser.newContext();
   let page = await openControlledPage(context);
