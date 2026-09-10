@@ -50,18 +50,12 @@ async function assignPlayer(page, playerName, teamId, finalPrice) {
 test("la mediana adatta il prezzo dalla soglia senza confonderlo con il Massimo spendibile", async () => {
   const page = await openActiveAuction();
   const card = page.getByRole("region", { name: "Scheda d’asta" });
-  const personalConstraints = page.getByRole("region", { name: "Vincoli personali" });
+  const teamSummary = page.getByRole("group", { name: "Riepilogo I Falchi" });
 
-  assert.equal(
-    await personalConstraints.getByText("976 crediti", { exact: true }).isVisible(),
-    true,
-  );
+  assert.match(await teamSummary.innerText(), /976 crediti spendibili/);
 
   await assignPlayer(page, "GIOCATORE_D_01", "main", 157);
-  assert.equal(
-    await personalConstraints.getByText("820 crediti", { exact: true }).isVisible(),
-    true,
-  );
+  assert.match(await teamSummary.innerText(), /820 crediti spendibili/);
   await assignPlayer(page, "GIOCATORE_D_02", "opponent-2", 55);
 
   await openPlayer(page, "GIOCATORE_D_04");
@@ -91,15 +85,12 @@ test("la mediana adatta il prezzo dalla soglia senza confonderlo con il Massimo 
 test("un Ruolo completo è Non acquistabile senza nascondere i riferimenti di mercato", async () => {
   const page = await openActiveAuction({ goalkeeperSlots: 1 });
   const card = page.getByRole("region", { name: "Scheda d’asta" });
-  const personalConstraints = page.getByRole("region", { name: "Vincoli personali" });
+  const teamSummary = page.getByRole("group", { name: "Riepilogo I Falchi" });
 
   await assignPlayer(page, "GIOCATORE_P_01", "main", 100);
   await openPlayer(page, "GIOCATORE_P_02");
 
-  assert.equal(
-    await personalConstraints.getByText("879 crediti", { exact: true }).isVisible(),
-    true,
-  );
+  assert.match(await teamSummary.innerText(), /879 crediti spendibili/);
   assert.equal(
     await card.getByText(/Il ruolo POR è completo nella tua rosa/).isVisible(),
     true,

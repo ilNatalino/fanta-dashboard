@@ -142,8 +142,7 @@ test("il Backup locale ripristina atomicamente Catalogo, categorie sovrapposte, 
 
   const dismissedMessage = await importBackup(page, backupContents, false);
   assert.match(dismissedMessage, /sostituire l.intero stato corrente/i);
-  await openView(page, "Asta");
-  assert.equal(await page.getByText("1 calciatori disponibili").isVisible(), true);
+  await openView(page, "Configurazione");
   assert.equal(await page.getByLabel("Budget iniziale comune").inputValue(), "300");
   assert.equal(await page.getByLabel("Nome della Squadra principale").inputValue(), "Squadra corrente");
   await openView(page, "Catalogo");
@@ -152,7 +151,7 @@ test("il Backup locale ripristina atomicamente Catalogo, categorie sovrapposte, 
 
   await importBackup(page, backupContents, true);
   assert.equal(await page.getByRole("status").getByText("Backup locale ripristinato.").isVisible(), true);
-  assert.equal(await page.getByText("30 calciatori disponibili").isVisible(), true);
+  await openView(page, "Configurazione");
   assert.equal(await page.getByLabel("Budget iniziale comune").inputValue(), "500");
   assert.equal(await page.getByLabel("Posti DIF").inputValue(), "3");
   assert.equal(await page.getByLabel("Nome della Squadra principale").inputValue(), "I Falchi");
@@ -163,6 +162,7 @@ test("il Backup locale ripristina atomicamente Catalogo, categorie sovrapposte, 
   assert.match(await page.getByRole("row", { name: /GIOCATORE_D_01/ }).innerText(), /Acquistato · I Falchi · 157 crediti/);
 
   await page.reload();
+  await openView(page, "Configurazione");
   assert.equal(await page.getByLabel("Budget iniziale comune").inputValue(), "500");
   assert.equal(await page.getByLabel("Posti DIF").inputValue(), "3");
   assert.equal(await page.getByLabel("Nome della Squadra principale").inputValue(), "I Falchi");
@@ -202,8 +202,7 @@ test("backup invalidi o incompatibili sono rifiutati senza proporre conferma né
     });
     await page.getByRole("button", { name: "Ripristina Backup locale" }).click();
     await page.getByRole("alert").waitFor({ state: "visible" });
-    await openView(page, "Asta");
-    assert.equal(await page.getByText("31 calciatori disponibili").isVisible(), true);
+    await openView(page, "Configurazione");
     assert.equal(await page.getByLabel("Budget iniziale comune").inputValue(), "500");
     assert.equal(await page.getByLabel("Posti DIF").inputValue(), "3");
     assert.equal(await page.getByLabel("Nome della Squadra principale").inputValue(), "I Falchi");
@@ -215,7 +214,7 @@ test("backup invalidi o incompatibili sono rifiutati senza proporre conferma né
 
   assert.equal(confirmationShown, false);
   await page.reload();
-  assert.equal(await page.getByText("31 calciatori disponibili").isVisible(), true);
+  await openView(page, "Configurazione");
   assert.equal(await page.getByLabel("Budget iniziale comune").inputValue(), "500");
   assert.equal(await page.getByLabel("Posti DIF").inputValue(), "3");
   assert.equal(await page.getByLabel("Nome della Squadra principale").inputValue(), "I Falchi");

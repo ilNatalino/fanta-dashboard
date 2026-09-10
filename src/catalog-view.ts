@@ -21,7 +21,7 @@ const numberFormatter = new Intl.NumberFormat("it-IT", {
 const themeStorageKey = "fanta-dashboard-theme";
 type OperationTarget = "import" | "configuration" | "shortlist" | "purchase" | "backup" | "persistence";
 type RankingSort = "pfc" | "slot" | "pma" | "expectedFantamedia" | "expectedTitolarita";
-type ActiveView = "auction" | "my-team" | "teams" | "catalog" | "backup";
+type ActiveView = "auction" | "my-team" | "teams" | "catalog" | "configuration" | "backup";
 type CatalogSort = "name" | "team" | "role" | "slot" | "pma" | "pfc" | "expectedFantamedia" | "expectedTitolarita";
 type SortDirection = "ascending" | "descending";
 type CatalogStatus = "available" | "purchased";
@@ -1386,8 +1386,6 @@ function renderActiveAuction(
 ): string {
   const configuration = auction.configuration;
   const mainTeam = auction.teams.find((team) => team.isMain)!;
-  const mainTeamPurchases = auction.purchases.filter((purchase) => purchase.teamId === mainTeam.id);
-  const mainTeamBudget = remainingTeamBudget(auction, mainTeam.id);
   const selectedPlayer = state.catalog.find(
     (player) => player.name === viewState.selectedPlayerName,
   );
@@ -1395,8 +1393,6 @@ function renderActiveAuction(
     ? occupiedTeamRoleSlots(auction, state.catalog, mainTeam.id, selectedPlayer.role)
       >= configuration.rosterSlots[selectedPlayer.role]
     : false;
-  const auctionComplete = isAuctionComplete(auction, state.catalog);
-  const availableCount = availablePlayers(state).length;
   if (viewState.activeView !== "auction") {
     const content = viewState.activeView === "catalog"
       ? renderCatalogSection(state, viewState, [], notice, operationError, operationTarget)
@@ -1408,6 +1404,8 @@ function renderActiveAuction(
         )
       : viewState.activeView === "my-team"
       ? renderMyRoster(state, auction)
+      : viewState.activeView === "configuration"
+      ? renderActiveConfiguration(auction, notice, operationError, operationTarget)
       : renderTeams(state, auction);
     return `
       <div class="shell shell-wide active-shell">
@@ -1422,24 +1420,9 @@ function renderActiveAuction(
       ${operationTarget === "backup" && notice
         ? `<p class="notice global-notice" role="status">${escapeHtml(notice)}</p>`
         : ""}
-      <section class="active-session-heading" aria-labelledby="auction-title">
-        <div>
-          <p class="session-kicker">${auctionComplete ? "Sessione completata" : "Sessione in corso"}</p>
-          <h1 id="auction-title">${auctionComplete ? "Asta completa" : "Asta attiva"}</h1>
-          ${auctionComplete ? "<p>Tutte le Squadre hanno occupato i Posti di ruolo configurati.</p>" : ""}
-        </div>
-        <div class="session-facts">
-          <span><strong>${availableCount}</strong> calciatori disponibili</span>
-          <span>Regole strutturali bloccate</span>
-        </div>
-      </section>
       ${renderRecentPurchase(state, auction)}
       <div class="auction-command-center">
-        <section class="card" aria-label="Ranking e Scarsità">
-          <h2>Ranking e Scarsità</h2>
-          ${renderRankingAndScarcity(state, viewState)}
-        </section>
-        <section class="card" aria-label="Scheda d’asta">
+        <section class="card auction-card-panel" aria-label="Scheda d’asta">
           <h2>Scheda d’asta</h2>
           ${renderAuctionCard(
             state,
@@ -1450,29 +1433,36 @@ function renderActiveAuction(
             selectedRoleIsComplete,
           )}
         </section>
-        <section class="card main-team-summary" aria-label="${escapeHtml(mainTeam.name)}">
-          <h2>${escapeHtml(mainTeam.name)}</h2>
-          <section class="personal-constraints" aria-label="Vincoli personali">
-            <h3>Vincoli personali</h3>
-            <p>Budget residuo: <span>${numberFormatter.format(mainTeamBudget)} crediti</span></p>
-            <p>Massimo spendibile: <span>${numberFormatter.format(maximumSpendable(auction, mainTeam.id))} crediti</span></p>
-          </section>
-          <ul>${Object.entries(roleNames).map(([role, name]) => `
-            <li data-main-team-role>${name} ${occupiedTeamRoleSlots(auction, state.catalog, mainTeam.id, role as ClassicRole)}/${configuration.rosterSlots[role as ClassicRole]}</li>
-          `).join("")}</ul>
-          <h3>Rosa</h3>
-          ${mainTeamPurchases.length > 0
-            ? `<ul aria-label="Rosa ${escapeHtml(mainTeam.name)}">${mainTeamPurchases.map((purchase) => `<li>${escapeHtml(purchase.playerName)} · ${purchase.finalPrice} crediti</li>`).join("")}</ul>`
-            : "<p>Nessun calciatore acquistato.</p>"}
+        <section class="card auction-ranking" aria-label="Ranking">
+          <h2>Ranking</h2>
+          ${renderRanking(state, viewState)}
+        </section>
+        <section class="card auction-scarcity" aria-label="Scarsità per slot">
+          <h2>Scarsità per slot</h2>
+          ${renderScarcity(state, viewState)}
         </section>
       </div>
-      <details class="auction-configuration-panel" ${operationTarget === "configuration" && (notice || operationError) ? "open" : ""}>
-        <summary>Configurazione d’asta</summary>
-        <form class="card auction-setup" id="auction-configuration">
-        <div>
-          <h2>Configurazione d’asta</h2>
+    </div>
+  `;
+}
+
+function renderActiveConfiguration(
+  auction: Readonly<ActiveAuction>,
+  notice: string,
+  operationError: string,
+  operationTarget: OperationTarget,
+): string {
+  const configuration = auction.configuration;
+  return `
+    <section class="configuration-view" aria-labelledby="auction-configuration-title">
+      <div class="active-heading compact-heading">
+        <h1 id="auction-configuration-title">Configurazione d’asta</h1>
+      </div>
+      <form class="card auction-setup" id="auction-configuration">
+        <div class="setup-intro">
+          <h2>Regole e Squadre</h2>
           <p>Un’unica sessione locale, senza storico di aste.</p>
-          <button type="submit">Salva Configurazione d’asta</button>
+          <button type="submit" aria-label="Salva Configurazione d’asta">Salva configurazione</button>
           <button type="button" class="secondary-button" data-reset-auction>Resetta asta</button>
           ${operationTarget === "configuration" && notice ? `<p class="notice" role="status">${escapeHtml(notice)}</p>` : ""}
           ${operationTarget === "configuration" && operationError ? `<p class="errors" role="alert">${escapeHtml(operationError)}</p>` : ""}
@@ -1492,9 +1482,8 @@ function renderActiveAuction(
             </label>
           `).join("")}
         </div>
-        </form>
-      </details>
-    </div>
+      </form>
+    </section>
   `;
 }
 
@@ -1643,7 +1632,7 @@ function purchasesWithPlayersForTeam(
   });
 }
 
-function renderRankingAndScarcity(
+function renderRanking(
   state: Readonly<AppState>,
   viewState: AuctionViewState,
 ): string {
@@ -1667,8 +1656,6 @@ function renderRankingAndScarcity(
       )
       .sort((left, right) => compareRankedPlayers(left, right, viewState.rankingSort))
     : [];
-  const maxSlot = Math.max(0, ...catalogRolePlayers.map((player) => player.slot));
-
   return `
     <div class="role-tabs" aria-label="Ruolo Classic">${Object.entries(roleNames).map(
       ([value, label]) => `<button
@@ -1712,7 +1699,18 @@ function renderRankingAndScarcity(
     <ol class="ranking-list" data-ranking-list aria-label="Ranking ${roleNames[role]}">${players.map((player) =>
       `<li><button type="button" data-call-player="${escapeHtml(player.name)}" ${viewState.selectedPlayerName === player.name ? 'aria-current="true"' : ""}><span>${escapeHtml(player.name)}</span><span class="ranking-metric"> · ${renderRankingValue(player, viewState.rankingSort)}</span></button></li>`,
     ).join("")}</ol>
-    <h3>Scarsità per slot</h3>
+  `;
+}
+
+function renderScarcity(
+  state: Readonly<AppState>,
+  viewState: AuctionViewState,
+): string {
+  const role = viewState.selectedRole;
+  const catalogRolePlayers = state.catalog.filter((player) => player.role === role);
+  const availableRolePlayers = availablePlayers(state).filter((player) => player.role === role);
+  const maxSlot = Math.max(0, ...catalogRolePlayers.map((player) => player.slot));
+  return `
     <ul class="scarcity-list" aria-label="Scarsità ${roleNames[role]}">${Array.from(
       { length: maxSlot },
       (_, index) => {
@@ -2013,6 +2011,7 @@ function renderActiveHeader(
         <div class="compact-team-summary" role="group" aria-label="Riepilogo ${escapeHtml(mainTeam.name)}">
           <strong>${escapeHtml(mainTeam.name)}</strong>
           <span>${numberFormatter.format(remainingTeamBudget(auction, mainTeam.id))} crediti residui</span>
+          <span>${numberFormatter.format(maximumSpendable(auction, mainTeam.id))} crediti spendibili</span>
           <span>${occupiedSlots}/${totalSlots} posti</span>
         </div>
         <span class="session-status" role="status">${isAuctionComplete(auction, state.catalog) ? "Asta completa" : "Asta avviata"}</span>
@@ -2051,6 +2050,7 @@ function renderPrimaryNavigation(
       unavailableReason: "disponibile dopo l’avvio dell’Asta",
     },
     { view: "catalog", label: "Catalogo", enabled: true },
+    ...(hasAuction ? [{ view: "configuration" as const, label: "Configurazione", enabled: true }] : []),
     { view: "backup", label: "Backup", enabled: true },
   ];
 

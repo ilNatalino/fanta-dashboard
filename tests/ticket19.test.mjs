@@ -70,8 +70,9 @@ test("l'Asta diventa completa naturalmente e le rose finali restano consultabili
     await assignPlayer(page, playerName, teamId);
   }
 
-  assert.equal(await page.getByRole("heading", { name: "Asta completa" }).isVisible(), true);
-  assert.equal(await page.getByText("Tutte le Squadre hanno occupato i Posti di ruolo configurati.").isVisible(), true);
+  assert.equal(await page.getByText("Asta completa", { exact: true }).isVisible(), true);
+  assert.equal(await page.getByRole("heading", { name: "Asta completa" }).count(), 0);
+  assert.equal(await page.getByText("Tutte le Squadre hanno occupato i Posti di ruolo configurati.").count(), 0);
   assert.equal(await page.getByRole("button", { name: /Termina asta/i }).count(), 0);
 
   await page.getByRole("navigation", { name: "Navigazione primaria" })
@@ -89,7 +90,7 @@ test("l'Asta diventa completa naturalmente e le rose finali restano consultabili
   assert.equal(await opponent.locator(".team-role-purchases li").count(), 4);
 
   await page.reload();
-  assert.equal(await page.getByRole("heading", { name: "Asta completa" }).isVisible(), true);
+  assert.equal(await page.getByText("Asta completa", { exact: true }).isVisible(), true);
   assert.equal(await page.getByRole("button", { name: /Termina asta/i }).count(), 0);
 
   await page.close();
@@ -132,10 +133,12 @@ test("il Reset dell'asta richiede conferma e conserva setup e Shortlist eliminan
     confirmationMessage = dialog.message();
     await dialog.dismiss();
   });
-  await page.locator("summary").filter({ hasText: "Configurazione d’asta" }).click();
+  await page.getByRole("navigation", { name: "Navigazione primaria" })
+    .getByRole("link", { name: "Configurazione" })
+    .click();
   await page.getByRole("button", { name: "Resetta asta" }).click();
   assert.match(confirmationMessage, /eliminare tutti gli Acquisti e i progressi/i);
-  assert.equal(await page.getByText("29 calciatori disponibili").isVisible(), true);
+  assert.equal(await page.getByRole("heading", { name: "Configurazione d’asta" }).isVisible(), true);
 
   page.once("dialog", (dialog) => dialog.accept());
   await page.getByRole("button", { name: "Resetta asta" }).click();
@@ -168,6 +171,9 @@ test("il Reset dell'asta richiede conferma e conserva setup e Shortlist eliminan
   await page.getByLabel("Budget iniziale comune").fill("600");
   await page.getByLabel("Posti DIF").fill("3");
   await page.getByRole("button", { name: "Avvia asta" }).click();
+  await page.getByRole("navigation", { name: "Navigazione primaria" })
+    .getByRole("link", { name: "Configurazione" })
+    .click();
   assert.equal(await page.getByLabel("Budget iniziale comune").inputValue(), "600");
   assert.equal(await page.getByLabel("Posti DIF").inputValue(), "3");
   assert.equal(await page.getByLabel("Posti DIF").isDisabled(), true);

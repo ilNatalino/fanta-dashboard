@@ -576,20 +576,17 @@ select {
   gap: 0.75rem;
 }
 
-.management-panel summary,
-.auction-configuration-panel summary {
+.management-panel summary {
   cursor: pointer;
   color: var(--text-secondary);
   font-weight: 750;
 }
 
-.management-panel[open] summary,
-.auction-configuration-panel[open] > summary {
+.management-panel[open] summary {
   margin-bottom: 0.75rem;
 }
 
-.management-panel .card,
-.auction-configuration-panel .card {
+.management-panel .card {
   margin-bottom: 0;
 }
 
@@ -827,40 +824,6 @@ select {
   font-size: 1rem;
 }
 
-.active-session-heading {
-  display: flex;
-  justify-content: space-between;
-  gap: 1.5rem;
-  align-items: end;
-  padding: 1.5rem 0 1rem;
-}
-
-.active-session-heading h1 {
-  margin: 0.2rem 0 0;
-  font-size: clamp(1.9rem, 3vw, 2.75rem);
-  letter-spacing: -0.04em;
-}
-
-.session-kicker {
-  margin: 0;
-  color: var(--accent);
-  font-size: 0.78rem;
-  font-weight: 800;
-}
-
-.session-facts {
-  display: flex;
-  flex-wrap: wrap;
-  justify-content: flex-end;
-  gap: 0.5rem 1.25rem;
-  color: var(--text-muted);
-  font-size: 0.85rem;
-}
-
-.session-facts strong {
-  color: var(--text-primary);
-}
-
 .recent-purchase {
   display: flex;
   justify-content: space-between;
@@ -911,52 +874,37 @@ select {
 
 .auction-command-center {
   display: grid;
-  grid-template-columns: minmax(16rem, 0.8fr) minmax(20rem, 1.4fr) minmax(14rem, 0.7fr);
+  grid-template-columns: clamp(18rem, 21vw, 20rem) minmax(24rem, 1fr) clamp(14rem, 16vw, 16rem);
   gap: 1rem;
   align-items: start;
   margin-bottom: 1.5rem;
 }
 
+.auction-card-panel {
+  grid-column: 2;
+  grid-row: 1;
+}
+
+.auction-ranking {
+  grid-column: 1;
+  grid-row: 1;
+}
+
+.auction-scarcity {
+  grid-column: 3;
+  grid-row: 1;
+}
+
 @media (min-width: 1051px) {
-  .auction-command-center > .card:first-child,
-  .main-team-summary {
+  .auction-ranking,
+  .auction-scarcity {
     position: sticky;
     top: 10.5rem;
   }
 }
 
-.main-team-summary ul {
-  display: grid;
-  gap: 0.5rem;
-  margin: 0;
-  padding: 0;
-  list-style: none;
-}
-
-.personal-constraints {
-  margin: 1rem 0;
-  border: 1px solid var(--border-strong);
-  border-radius: 0.75rem;
-  padding: 0.85rem;
-  background: var(--surface-deep);
-}
-
-.personal-constraints h3,
 .market-signals h4 {
   margin: 0;
-}
-
-.personal-constraints p {
-  margin: 0.75rem 0 0;
-  color: var(--text-subtle);
-  font-size: 0.75rem;
-}
-
-.personal-constraints span {
-  display: block;
-  margin-top: 0.25rem;
-  color: var(--text-primary);
-  font-weight: 800;
 }
 
 .role-tabs {
@@ -1353,22 +1301,6 @@ select {
   font-weight: 700;
 }
 
-.auction-configuration-panel {
-  display: block;
-  margin-bottom: 1.5rem;
-  border: 1px solid var(--border);
-  border-radius: 1rem;
-  padding: 1rem 1.25rem;
-  background: var(--surface);
-}
-
-.auction-configuration-panel .auction-setup {
-  border: 0;
-  padding: 0;
-  background: transparent;
-  box-shadow: none;
-}
-
 .replace-panel {
   width: min(24rem, 100%);
 }
@@ -1693,11 +1625,22 @@ tbody tr:hover th[scope="row"] {
   }
 
   .auction-command-center {
-    grid-template-columns: minmax(16rem, 0.85fr) minmax(20rem, 1.15fr);
+    grid-template-columns: repeat(2, minmax(0, 1fr));
   }
 
-  .main-team-summary {
+  .auction-card-panel {
     grid-column: 1 / -1;
+    grid-row: 1;
+  }
+
+  .auction-ranking {
+    grid-column: 1;
+    grid-row: 2;
+  }
+
+  .auction-scarcity {
+    grid-column: 2;
+    grid-row: 2;
   }
 
   .roster-columns,
@@ -1750,8 +1693,22 @@ tbody tr:hover th[scope="row"] {
     grid-template-columns: 1fr;
   }
 
-  .auction-command-center > .card:nth-child(2) {
-    order: -1;
+  .auction-card-panel,
+  .auction-ranking,
+  .auction-scarcity {
+    grid-column: 1;
+  }
+
+  .auction-card-panel {
+    grid-row: 1;
+  }
+
+  .auction-ranking {
+    grid-row: 2;
+  }
+
+  .auction-scarcity {
+    grid-row: 3;
   }
 
   .topbar:not(.active-topbar) {
@@ -1806,7 +1763,6 @@ tbody tr:hover th[scope="row"] {
     display: none;
   }
 
-  .active-session-heading,
   .recent-purchase {
     display: grid;
     align-items: start;
@@ -1815,10 +1771,6 @@ tbody tr:hover th[scope="row"] {
   .auction-card-heading button:not(.icon-button) {
     width: 100%;
     white-space: nowrap;
-  }
-
-  .session-facts {
-    justify-content: flex-start;
   }
 
   .recent-purchase-actions button:not(.icon-button),

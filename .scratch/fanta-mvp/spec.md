@@ -18,7 +18,7 @@ Deve inoltre poter correggere gli errori senza lasciare dati derivati incoerenti
 
 Realizzare una web app desktop personale per una singola Asta attiva di Fantacalcio Classic. L'app importa atomicamente il Catalogo calciatori da CSV, permette di configurare Squadre, budget e Posti di ruolo, conserva una Shortlist a categorie personali e registra ogni Acquisto con Squadra e prezzo finale.
 
-Durante l'asta, un command center a tre colonne mostra il Ranking dei calciatori disponibili e la Scarsità per slot, la Scheda d'asta del Calciatore chiamato e la rosa della Squadra principale. PMA e PFC restano riferimenti del provider; il Prezzo adattato all'asta usa lo Scostamento d'asta per ruolo osservato; budget residuo e Massimo spendibile rimangono vincoli personali distinti.
+Durante l'asta, un command center a tre colonne mostra il Ranking dei calciatori disponibili a sinistra, una Scheda d'asta ampliata per il Calciatore chiamato al centro e la Scarsità per slot a destra. PMA e PFC restano riferimenti del provider; il Prezzo adattato all'asta usa lo Scostamento d'asta per ruolo osservato; budget residuo e Massimo spendibile rimangono vincoli personali distinti nel riepilogo della testata.
 
 Tutte le operazioni valide vengono salvate localmente come un unico stato versionato e ripristinabile. Correzioni, annullamenti, importazioni e ripristini sono atomici. Un backup manuale permette di esportare e reimportare l'intero stato.
 
@@ -82,9 +82,9 @@ Tutte le operazioni valide vengono salvate localmente come un unico stato versio
 56. Come Fantallenatore principale, voglio che il modulo di correzione sia precompilato, così da modificare soltanto ciò che è sbagliato.
 57. Come Fantallenatore principale, voglio che una correzione invalida lasci intatto l'Acquisto originale, così da non perdere un dato valido.
 58. Come Fantallenatore principale, voglio annullare un Acquisto dopo una conferma esplicita, così da restituire il calciatore ai disponibili senza cancellazioni accidentali.
-59. Come Fantallenatore principale, voglio che la pagina Asta mantenga visibile la rosa della Squadra principale, così da controllare costantemente Acquisti, budget e posti.
-60. Come Fantallenatore principale, voglio vedere budget residuo e Massimo spendibile in una zona fissa, così da consultarli senza confonderli con la Scheda d'asta.
-61. Come Fantallenatore principale, voglio navigare tra `Asta`, `La mia rosa` e `Squadre`, così da separare operatività live e consultazione dettagliata.
+59. Come Fantallenatore principale, voglio che la Scheda d'asta abbia più spazio del Ranking e della Scarsità per slot, così da consultare e usare senza compressioni le informazioni del Calciatore chiamato.
+60. Come Fantallenatore principale, voglio vedere budget residuo e Massimo spendibile in una zona fissa della testata, così da consultarli senza confonderli con la Scheda d'asta.
+61. Come Fantallenatore principale, voglio navigare tra `Asta`, `La mia rosa`, `Squadre`, `Catalogo`, `Configurazione` e `Backup`, così da separare operatività live, consultazione e gestione.
 62. Come Fantallenatore principale, voglio vedere la mia rosa in colonne per Ruolo con spesa, percentuale del budget e Posti di ruolo, così da valutarne la composizione.
 63. Come Fantallenatore principale, voglio confrontare nella mia rosa la distribuzione degli Slot acquistati e la Scarsità per slot residua, così da distinguere composizione personale e inventario del Catalogo calciatori.
 64. Come Fantallenatore principale, voglio consultare la rosa di ogni Squadra avversaria, così da vedere budget, spesa, posti e Acquisti registrati.
@@ -173,10 +173,14 @@ Tutte le operazioni valide vengono salvate localmente come un unico stato versio
 
 ### Interfaccia desktop
 
-- La navigazione primaria è `Asta · La mia rosa · Squadre`. La ricerca del Calciatore chiamato e il riepilogo compatto della Squadra principale restano nella testata.
-- La pagina `Asta` è un command center a tre colonne: Ranking e Scarsità per slot a sinistra, Scheda d'asta al centro, rosa della Squadra principale a destra.
+- Dopo l'avvio, la navigazione primaria è `Asta · La mia rosa · Squadre · Catalogo · Configurazione · Backup`. Prima dell'avvio, la Configurazione d'asta iniziale resta nel percorso `Asta` e la relativa scheda dedicata non è disponibile.
+- La ricerca del Calciatore chiamato e il riepilogo compatto della Squadra principale restano nella testata. Il riepilogo mostra budget residuo, Massimo spendibile e Posti di ruolo occupati.
+- La pagina `Asta` non ripete in una fascia separata titolo, stato, numero di disponibili o blocco delle regole strutturali; lo stato `Asta avviata` o `Asta completa` resta nella testata.
+- La pagina `Asta` è un command center a tre colonne: Ranking a sinistra, Scheda d'asta al centro e Scarsità per slot a destra. Ranking e Scarsità per slot condividono il Ruolo Classic selezionato.
+- Su desktop Ranking e Scarsità per slot usano colonne laterali compatte e sticky, mentre la Scheda d'asta occupa tutto lo spazio restante. Su tablet la Scheda d'asta occupa la prima riga e le due sezioni laterali sono affiancate sotto; su mobile l'ordine verticale è Scheda d'asta, Ranking, Scarsità per slot e non viene applicato lo sticky.
 - La Scheda d'asta mostra al primo livello identità, Ruolo, squadra reale, Slot, Percezione storica di mercato, PMA, PFC e Prezzo adattato all'asta. Fantamedia, Titolarità prevista, Alternative immediate e categorie della Shortlist restano secondarie ma visibili.
-- Budget residuo e Massimo spendibile sono affiancati in una zona fissa della colonna della Squadra principale. La rosa completa è raggruppata per Ruolo e scorre autonomamente.
+- La pagina `Asta` non mostra più la scheda riepilogativa o la rosa della Squadra principale; la rosa completa resta disponibile nella vista `La mia rosa`.
+- La scheda `Configurazione`, disponibile dopo l'avvio, mostra direttamente l'intero pannello della Configurazione d'asta senza un ulteriore controllo apri/chiudi: regole strutturali in sola lettura, Soglia di adattamento, tolleranza della Percezione storica di mercato, nomi delle Squadre e Reset dell'asta.
 - `La mia rosa` usa colonne per Ruolo, non un campo da gioco. Per ogni Ruolo mostra crediti spesi, percentuale del budget iniziale comune, Posti di ruolo occupati e totali, calciatori acquistati e posti liberi.
 - `La mia rosa` separa la distribuzione degli Slot acquisiti dalla Squadra principale dalla Scarsità per slot ancora osservabile nel Catalogo calciatori.
 - `Squadre` elenca le Squadre avversarie e permette di aprirne la rosa. Mostra soltanto budget residuo, crediti spesi, Posti di ruolo e Acquisti registrati.
@@ -207,7 +211,7 @@ Tutte le operazioni valide vengono salvate localmente come un unico stato versio
 1. Importando il Catalogo rappresentativo, tutti i 32 calciatori diventano disponibili, gli otto campi previsti vengono letti e le colonne aggiuntive vengono ignorate.
 2. Importando un CSV con colonne mancanti, nomi duplicati normalizzati o valori non ammessi, l'intero file viene rifiutato, gli errori indicano riga, campo e motivo e il Catalogo calciatori precedente resta invariato.
 3. Avviando l'asta con `8 squadre · 1.000 crediti · 3/8/8/6 posti`, le regole strutturali vengono bloccate, i nomi restano modificabili e un refresh ripristina automaticamente l'Asta attiva.
-4. La pagina `Asta` presenta Ranking e Scarsità per slot, Scheda d'asta e rosa della Squadra principale nelle tre aree stabilite; segnali di mercato e vincoli personali restano separati.
+4. La pagina `Asta` presenta Ranking a sinistra, Scheda d'asta ampliata al centro e Scarsità per slot a destra, sincronizzati sul medesimo Ruolo Classic; la testata mostra budget residuo, Massimo spendibile, Posti di ruolo e stato della sessione senza una fascia introduttiva duplicata.
 5. Assegnando `GIOCATORE_D_01` a `Squadra 2` per 157 crediti, il calciatore scompare dai disponibili, compare nella rosa, il budget diventa 843, la Scarsità per slot diminuisce e la Scheda d'asta si chiude soltanto dopo il salvataggio.
 6. Tentando di assegnare un calciatore già acquistato, superare il budget o superare i Posti di ruolo, l'Acquisto viene bloccato, lo stato non cambia e il modulo conserva i dati con un errore contestuale.
 7. Esempi sopra, sotto ed entro la tolleranza del 5% vengono classificati come `In hype`, `Sottovalutato` e `In linea`; PMA e PFC originali sono presentati come interi.

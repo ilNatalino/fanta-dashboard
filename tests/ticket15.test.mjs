@@ -77,7 +77,7 @@ test("un Acquisto valido aggiorna atomicamente disponibilità, budget e inventar
   );
 
   await page.reload();
-  assert.equal(await page.getByText("31 calciatori disponibili").isVisible(), true);
+  assert.equal(await page.getByText("Asta avviata", { exact: true }).isVisible(), true);
   await openPlayer(page, "GIOCATORE_D_02");
   await card.getByRole("button", { name: "Assegna giocatore" }).click();
   assert.equal(
@@ -91,7 +91,7 @@ test("un Acquisto valido aggiorna atomicamente disponibilità, budget e inventar
 test("gli Acquisti impossibili conservano modulo e stato fino a un salvataggio valido", async () => {
   const page = await openActiveAuction({ goalkeeperSlots: 1 });
   const card = page.getByRole("region", { name: "Scheda d’asta" });
-  const mainTeam = page.getByRole("region", { name: "I Falchi" });
+  const teamSummary = page.getByRole("group", { name: "Riepilogo I Falchi" });
 
   await openPlayer(page, "GIOCATORE_D_01");
   await card.getByRole("button", { name: "Assegna giocatore" }).click();
@@ -107,7 +107,10 @@ test("gli Acquisti impossibili conservano modulo e stato fino a un salvataggio v
   assert.match(await card.getByRole("alert").innerText(), /già stato acquistato/i);
   assert.equal(await card.getByLabel("Squadra").inputValue(), "opponent-2");
   assert.equal(await card.getByLabel("Prezzo finale").inputValue(), "157");
-  assert.equal(await page.getByText("31 calciatori disponibili").isVisible(), true);
+  assert.equal(
+    await page.getByRole("list", { name: "Ranking DIF" }).getByText(/GIOCATORE_D_01/).count(),
+    0,
+  );
 
   await openPlayer(page, "GIOCATORE_D_02");
   await card.getByRole("button", { name: "Assegna giocatore" }).click();
@@ -117,20 +120,14 @@ test("gli Acquisti impossibili conservano modulo e stato fino a un salvataggio v
   assert.match(await card.getByRole("alert").innerText(), /supera il budget disponibile/i);
   assert.equal(await card.getByLabel("Squadra").inputValue(), "main");
   assert.equal(await card.getByLabel("Prezzo finale").inputValue(), "1001");
-  assert.equal(await mainTeam.getByText("Budget residuo: 1.000 crediti").isVisible(), true);
-  assert.equal(await mainTeam.getByText("DIF 0/8").isVisible(), true);
+  assert.match(await teamSummary.innerText(), /1\.000 crediti residui/);
 
   await openPlayer(page, "GIOCATORE_P_01");
   await card.getByRole("button", { name: "Assegna giocatore" }).click();
   await card.getByLabel("Squadra").selectOption("main");
   await card.getByLabel("Prezzo finale").fill("1");
   await card.getByRole("button", { name: "Registra Acquisto" }).click();
-  assert.equal(await mainTeam.getByText("Budget residuo: 999 crediti").isVisible(), true);
-  assert.equal(await mainTeam.getByText("POR 1/1").isVisible(), true);
-  assert.equal(
-    await mainTeam.getByRole("list", { name: "Rosa I Falchi" }).getByRole("listitem").innerText(),
-    "GIOCATORE_P_01 · 1 crediti",
-  );
+  assert.match(await teamSummary.innerText(), /999 crediti residui[\s\S]*1\/23 posti/);
 
   await openPlayer(page, "GIOCATORE_P_02");
   await card.getByRole("button", { name: "Assegna giocatore" }).click();
@@ -140,15 +137,24 @@ test("gli Acquisti impossibili conservano modulo e stato fino a un salvataggio v
   assert.match(await card.getByRole("alert").innerText(), /non ha Posti di ruolo liberi per POR/i);
   assert.equal(await card.getByLabel("Squadra").inputValue(), "main");
   assert.equal(await card.getByLabel("Prezzo finale").inputValue(), "1");
-  assert.equal(await page.getByText("30 calciatori disponibili").isVisible(), true);
-  assert.equal(await mainTeam.getByText("Budget residuo: 999 crediti").isVisible(), true);
-  assert.equal(await mainTeam.getByText("POR 1/1").isVisible(), true);
+  assert.equal(
+    await page.getByRole("list", { name: "Ranking POR" }).getByText(/GIOCATORE_P_01/).count(),
+    0,
+  );
+  assert.match(await teamSummary.innerText(), /999 crediti residui[\s\S]*1\/23 posti/);
 
   await page.reload();
-  assert.equal(await page.getByText("30 calciatori disponibili").isVisible(), true);
-  assert.equal(await mainTeam.getByText("Budget residuo: 999 crediti").isVisible(), true);
-  assert.equal(await mainTeam.getByText("POR 1/1").isVisible(), true);
-  assert.equal(await mainTeam.getByText("GIOCATORE_P_01 · 1 crediti").isVisible(), true);
+  assert.match(
+    await page.getByRole("group", { name: "Riepilogo I Falchi" }).innerText(),
+    /999 crediti residui[\s\S]*1\/23 posti/,
+  );
+  await page.getByRole("navigation", { name: "Navigazione primaria" })
+    .getByRole("link", { name: "La mia rosa" })
+    .click();
+  assert.equal(
+    await page.getByRole("list", { name: "Acquisti POR" }).getByText(/GIOCATORE_P_01/).isVisible(),
+    true,
+  );
 
   await page.close();
 });

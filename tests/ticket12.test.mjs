@@ -54,6 +54,11 @@ test("il Catalogo disponibile espone la configurazione rappresentativa e richied
   await page.getByRole("button", { name: "Avvia asta" }).click();
   assert.equal(await page.getByLabel("Nome della Squadra principale").evaluate((input) => input.matches(":invalid")), true);
   assert.equal(await page.getByRole("heading", { name: "Asta attiva", exact: true }).count(), 0);
+  assert.equal(
+    await page.getByRole("navigation", { name: "Navigazione primaria" })
+      .getByRole("link", { name: "Configurazione" }).count(),
+    0,
+  );
 
   await page.close();
 });
@@ -65,8 +70,12 @@ test("l'avvio salva l'unica Asta attiva, blocca le regole strutturali e sopravvi
   await page.getByLabel("Nome della Squadra principale").fill("I Falchi");
   await page.getByRole("button", { name: "Avvia asta" }).click();
 
-  assert.equal(await page.getByRole("heading", { name: "Asta attiva", exact: true }).isVisible(), true);
-  assert.equal(await page.getByText("Sessione in corso", { exact: true }).count(), 1);
+  assert.equal(await page.getByRole("heading", { name: "Asta attiva", exact: true }).count(), 0);
+  assert.equal(await page.getByText("Sessione in corso", { exact: true }).count(), 0);
+  assert.equal(await page.getByText("Asta avviata", { exact: true }).isVisible(), true);
+  await page.getByRole("navigation", { name: "Navigazione primaria" })
+    .getByRole("link", { name: "Configurazione" })
+    .click();
   assert.equal(await page.getByLabel("Numero di Squadre").isDisabled(), true);
   assert.equal(await page.getByLabel("Budget iniziale comune").isDisabled(), true);
   assert.deepEqual(
@@ -81,7 +90,11 @@ test("l'avvio salva l'unica Asta attiva, blocca le regole strutturali e sopravvi
 
   await page.reload();
 
-  assert.equal(await page.getByRole("heading", { name: "Asta attiva", exact: true }).isVisible(), true);
+  assert.equal(await page.getByRole("heading", { name: "Asta attiva", exact: true }).count(), 0);
+  assert.equal(await page.getByText("Asta avviata", { exact: true }).isVisible(), true);
+  await page.getByRole("navigation", { name: "Navigazione primaria" })
+    .getByRole("link", { name: "Configurazione" })
+    .click();
   assert.equal(await page.getByLabel("Numero di Squadre").inputValue(), "8");
   assert.equal(await page.getByLabel("Budget iniziale comune").inputValue(), "1000");
   assert.equal(await page.getByLabel("Nome della Squadra principale").inputValue(), "I Falchi");
@@ -109,6 +122,9 @@ test("numero di Squadre, budget, Posti di ruolo, Soglia di adattamento e tollera
   await page.getByLabel("Tolleranza della Percezione storica di mercato (%)").fill("7");
   await page.getByLabel("Nome della Squadra principale").fill("I Lupi");
   await page.getByRole("button", { name: "Avvia asta" }).click();
+  await page.getByRole("navigation", { name: "Navigazione primaria" })
+    .getByRole("link", { name: "Configurazione" })
+    .click();
 
   assert.equal(await page.getByLabel("Numero di Squadre").inputValue(), "5");
   assert.equal(await page.getByLabel("Budget iniziale comune").inputValue(), "750");
@@ -129,7 +145,10 @@ test("dopo l'avvio i nomi delle Squadre, la Soglia di adattamento e la tolleranz
   await page.getByLabel("Nome della Squadra principale").fill("I Falchi");
   await page.getByRole("button", { name: "Avvia asta" }).click();
 
-  await page.locator("summary").filter({ hasText: "Configurazione d’asta" }).click();
+  await page.getByRole("navigation", { name: "Navigazione primaria" })
+    .getByRole("link", { name: "Configurazione" })
+    .click();
+  assert.equal(await page.locator(".configuration-view details").count(), 0);
   await page.getByLabel("Nome della Squadra principale").fill("Le Aquile");
   await page.getByLabel("Squadra avversaria 2").fill("I Rivali");
   await page.getByLabel("Soglia di adattamento").fill("4");
@@ -138,6 +157,9 @@ test("dopo l'avvio i nomi delle Squadre, la Soglia di adattamento e la tolleranz
 
   assert.equal(await page.getByText("Configurazione d’asta salvata.", { exact: true }).isVisible(), true);
   await page.reload();
+  await page.getByRole("navigation", { name: "Navigazione primaria" })
+    .getByRole("link", { name: "Configurazione" })
+    .click();
   assert.equal(await page.getByLabel("Nome della Squadra principale").inputValue(), "Le Aquile");
   assert.equal(await page.getByLabel("Squadra avversaria 2").inputValue(), "I Rivali");
   assert.equal(await page.getByLabel("Soglia di adattamento").inputValue(), "4");

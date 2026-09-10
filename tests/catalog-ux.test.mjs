@@ -133,7 +133,7 @@ test("le scorciatoie mantengono rapido il flusso tastiera dell'asta", async () =
   const page = await openActiveAuction();
   const search = page.getByLabel("Cerca il Calciatore chiamato");
 
-  await page.getByRole("heading", { name: "Asta attiva", exact: true }).click();
+  await page.getByRole("region", { name: "Scheda d’asta" }).click();
   await page.keyboard.press("/");
   assert.equal(await search.evaluate((element) => document.activeElement === element), true);
 
@@ -181,7 +181,7 @@ test("il Ranking conserva posizione e selezione e il modulo Acquisto riceve il f
   await page.getByLabel("Numero di Squadre").fill("2");
   await page.getByLabel("Nome della Squadra principale").fill("I Falchi");
   await page.getByRole("button", { name: "Avvia asta" }).click();
-  await page.getByRole("region", { name: "Ranking e Scarsità" })
+  await page.getByRole("region", { name: "Ranking" })
     .getByRole("button", { name: "CEN" })
     .click();
 
@@ -230,9 +230,17 @@ test("su mobile la Scheda d’asta precede il Ranking e la testata lascia spazio
   );
   const cardTop = await page.getByRole("region", { name: "Scheda d’asta" })
     .evaluate((element) => element.getBoundingClientRect().top);
-  const rankingTop = await page.getByRole("region", { name: "Ranking e Scarsità" })
+  const rankingTop = await page.getByRole("region", { name: "Ranking" })
     .evaluate((element) => element.getBoundingClientRect().top);
-  assert.equal(cardTop < rankingTop, true);
+  const scarcityTop = await page.getByRole("region", { name: "Scarsità per slot" })
+    .evaluate((element) => element.getBoundingClientRect().top);
+  assert.equal(cardTop < rankingTop && rankingTop < scarcityTop, true);
+  assert.deepEqual(
+    await Promise.all([".auction-ranking", ".auction-scarcity"].map((selector) =>
+      page.locator(selector).evaluate((element) => getComputedStyle(element).position)
+    )),
+    ["static", "static"],
+  );
   assert.equal(await page.getByLabel("Cerca il Calciatore chiamato").getAttribute("placeholder"), "Nome del calciatore");
 
   await page.close();

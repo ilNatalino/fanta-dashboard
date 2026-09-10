@@ -48,9 +48,8 @@ async function startAuction(page) {
 
 async function resetAuction(page) {
   await page.getByRole("navigation", { name: "Navigazione primaria" })
-    .getByRole("link", { name: "Asta" })
+    .getByRole("link", { name: "Configurazione" })
     .click();
-  await page.locator("summary").filter({ hasText: "Configurazione d’asta" }).click();
   page.once("dialog", (dialog) => dialog.accept());
   await page.getByRole("button", { name: "Resetta asta" }).click();
   await page.getByRole("heading", { name: "Configura l’Asta attiva" }).waitFor();

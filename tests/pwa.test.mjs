@@ -76,7 +76,7 @@ async function startAuctionWithPurchase(page) {
 
 async function assertAuctionWithPurchase(page) {
   assert.equal(
-    await page.getByRole("heading", { name: "Asta attiva", exact: true }).isVisible(),
+    await page.getByText("Asta avviata", { exact: true }).isVisible(),
     true,
   );
   await page.getByRole("navigation", { name: "Navigazione primaria" })

@@ -44,18 +44,18 @@ async function assignPlayer(page, playerName, teamId, finalPrice) {
   await card.getByRole("button", { name: "Registra Acquisto" }).click();
 }
 
-test("la navigazione primaria apre le tre viste e mantiene ricerca e riepilogo nella testata", async () => {
+test("la navigazione primaria apre le viste operative e la Configurazione mantenendo ricerca e riepilogo", async () => {
   const page = await openActiveAuction();
   const navigation = page.getByRole("navigation", { name: "Navigazione primaria" });
   const header = page.getByRole("banner");
 
   assert.deepEqual(
     await navigation.getByRole("link").allTextContents(),
-    ["Asta", "La mia rosa", "Squadre", "Catalogo", "Backup"],
+    ["Asta", "La mia rosa", "Squadre", "Catalogo", "Configurazione", "Backup"],
   );
   assert.equal(await navigation.getByRole("link", { name: "Asta" }).getAttribute("aria-current"), "page");
   assert.equal(await header.getByLabel("Cerca il Calciatore chiamato").isVisible(), true);
-  assert.match(await header.getByRole("group", { name: "Riepilogo I Falchi" }).innerText(), /1\.000 crediti residui[\s\S]*0\/25 posti/);
+  assert.match(await header.getByRole("group", { name: "Riepilogo I Falchi" }).innerText(), /1\.000 crediti residui[\s\S]*976 crediti spendibili[\s\S]*0\/25 posti/);
   assert.equal(
     await page.locator(".active-topbar + *").evaluate((content) => getComputedStyle(content).marginTop),
     "24px",
@@ -70,6 +70,11 @@ test("la navigazione primaria apre le tre viste e mantiene ricerca e riepilogo n
   assert.equal(await page.locator(".teams-view > .active-heading").count(), 0);
   assert.equal(await page.locator("#teams-title").getAttribute("class"), "visually-hidden");
   assert.equal(await header.getByRole("group", { name: "Riepilogo I Falchi" }).isVisible(), true);
+
+  await navigation.getByRole("link", { name: "Configurazione" }).click();
+  assert.equal(await page.getByRole("heading", { name: "Configurazione d’asta", exact: true }).isVisible(), true);
+  assert.equal(await page.locator(".configuration-view details").count(), 0);
+  assert.equal(await page.getByLabel("Numero di Squadre").isDisabled(), true);
 
   await header.getByLabel("Cerca il Calciatore chiamato").fill("GIOCATORE_D_01");
   await header.getByRole("button", { name: "Apri Scheda d’asta" }).click();

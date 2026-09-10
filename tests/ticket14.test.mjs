@@ -42,14 +42,33 @@ async function createCategory(page, name) {
 test("l'Asta presenta il command center operativo in tre zone informative", async () => {
   const page = await openActiveAuction();
 
-  assert.equal(await page.getByRole("heading", { name: "Asta attiva", exact: true }).isVisible(), true);
-  assert.equal(await page.getByRole("region", { name: "Ranking e Scarsità" }).isVisible(), true);
+  assert.equal(await page.getByRole("heading", { name: "Asta attiva", exact: true }).count(), 0);
+  assert.equal(await page.getByText("Regole strutturali bloccate", { exact: true }).count(), 0);
+  assert.equal(await page.getByRole("region", { name: "Ranking" }).isVisible(), true);
   assert.equal(await page.getByRole("region", { name: "Scheda d’asta" }).isVisible(), true);
-  assert.equal(await page.getByRole("region", { name: "I Falchi" }).isVisible(), true);
-  assert.equal(await page.getByText("Budget residuo: 1.000 crediti").isVisible(), true);
+  assert.equal(await page.getByRole("region", { name: "Scarsità per slot" }).isVisible(), true);
+  assert.equal(await page.getByRole("region", { name: "I Falchi" }).count(), 0);
+  assert.match(
+    await page.getByRole("group", { name: "Riepilogo I Falchi" }).innerText(),
+    /1\.000 crediti residui[\s\S]*976 crediti spendibili[\s\S]*0\/25 posti/,
+  );
+  const boxes = await page.locator(".auction-command-center > .card").evaluateAll((cards) =>
+    cards.map((card) => ({
+      className: card.className,
+      left: card.getBoundingClientRect().left,
+      width: card.getBoundingClientRect().width,
+    })),
+  );
+  const card = boxes.find(({ className }) => className.includes("auction-card-panel"));
+  const ranking = boxes.find(({ className }) => className.includes("auction-ranking"));
+  const scarcity = boxes.find(({ className }) => className.includes("auction-scarcity"));
+  assert.equal(ranking.left < card.left && card.left < scarcity.left, true);
+  assert.equal(card.width > ranking.width && card.width > scarcity.width, true);
   assert.deepEqual(
-    await page.locator("[data-main-team-role]").allTextContents(),
-    ["POR 0/3", "DIF 0/8", "CEN 0/8", "ATT 0/6"],
+    await Promise.all([".auction-ranking", ".auction-scarcity"].map((selector) =>
+      page.locator(selector).evaluate((element) => getComputedStyle(element).position)
+    )),
+    ["sticky", "sticky"],
   );
 
   await page.close();
@@ -87,7 +106,8 @@ test("la ricerca apre e chiude la Scheda d’asta senza modificare il Catalogo",
 
 test("Ranking, ordinamenti trasparenti e Scarsità restano distinti per Ruolo Classic", async () => {
   const page = await openActiveAuction();
-  const region = page.getByRole("region", { name: "Ranking e Scarsità" });
+  const region = page.getByRole("region", { name: "Ranking" });
+  const scarcity = page.getByRole("region", { name: "Scarsità per slot" });
 
   await region.getByRole("button", { name: "ATT", exact: true }).click();
   assert.deepEqual(
@@ -104,7 +124,7 @@ test("Ranking, ordinamenti trasparenti e Scarsità restano distinti per Ruolo Cl
     ],
   );
   assert.deepEqual(
-    await region.getByRole("list", { name: "Scarsità ATT" }).getByRole("listitem").allTextContents(),
+    await scarcity.getByRole("list", { name: "Scarsità ATT" }).getByRole("listitem").allTextContents(),
     ["Slot 1 1 disponibile", "Slot 2 1 disponibile", "Slot 3 1 disponibile", "Slot 4 1 disponibile", "Slot 5 2 disponibili", "Slot 6 2 disponibili"],
   );
 
@@ -166,7 +186,7 @@ test("la Scheda gestisce la Shortlist senza alterare Ranking, Scarsità o Altern
 
   await card.getByLabel("Osservati").check();
   assert.equal(await card.getByText("In Shortlist").isVisible(), true);
-  await page.getByRole("region", { name: "Ranking e Scarsità" })
+  await page.getByRole("region", { name: "Ranking" })
     .getByLabel("Filtra per categoria")
     .selectOption({ label: "Osservati" });
   assert.deepEqual(

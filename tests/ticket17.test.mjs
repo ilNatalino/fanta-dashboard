@@ -84,12 +84,17 @@ test("la Correzione dell'acquisto è precompilata e aggiorna Squadra, prezzo, bu
 
   assert.match(await row.innerText(), /Acquistato · I Falchi · 120 crediti/);
   await openView(page, "Asta");
-  const mainTeam = page.getByRole("region", { name: "I Falchi" });
-  assert.equal(await mainTeam.getByText("Budget residuo: 880 crediti").isVisible(), true);
-  assert.equal(await mainTeam.getByText("DIF 1/8").isVisible(), true);
-  assert.equal(await mainTeam.getByText("GIOCATORE_D_01 · 120 crediti").isVisible(), true);
+  assert.match(
+    await page.getByRole("group", { name: "Riepilogo I Falchi" }).innerText(),
+    /880 crediti residui[\s\S]*1\/25 posti/,
+  );
   assert.equal(
     await page.getByRole("list", { name: "Scarsità DIF" }).locator('[aria-label="Slot 1: 0 disponibili"]').isVisible(),
+    true,
+  );
+  await openView(page, "La mia rosa");
+  assert.equal(
+    await page.getByRole("list", { name: "Acquisti DIF" }).getByText(/GIOCATORE_D_01/).isVisible(),
     true,
   );
 
@@ -123,9 +128,9 @@ test("la validazione non conta due volte l'Acquisto e una Correzione invalida co
   assert.equal(await correction.getByLabel("Prezzo finale").inputValue(), "50");
   assert.match(await row.innerText(), /Acquistato · I Falchi · 100 crediti/);
   await openView(page, "Asta");
-  assert.equal(
-    await page.getByRole("region", { name: "I Falchi" }).getByText("Budget residuo: 900 crediti").isVisible(),
-    true,
+  assert.match(
+    await page.getByRole("group", { name: "Riepilogo I Falchi" }).innerText(),
+    /900 crediti residui/,
   );
   await openView(page, "Catalogo");
 
