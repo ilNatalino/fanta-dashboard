@@ -82,7 +82,10 @@ test("la ricerca apre e chiude la Scheda d’asta senza modificare il Catalogo",
   await page.getByRole("button", { name: "Apri Scheda d’asta" }).click();
 
   assert.equal(await card.getByRole("heading", { name: "GIOCATORE_D_01" }).isVisible(), true);
-  assert.equal(await card.getByText("CLUB_06 · DIF · Slot 1").isVisible(), true);
+  assert.deepEqual(
+    await card.locator("[data-player-identity] dd").allTextContents(),
+    ["CLUB_06", "DIF", "Slot 1"],
+  );
   const cardText = await card.innerText();
   assert.match(cardText, /PMA\s+153/);
   assert.match(cardText, /PFC\s+143/);
@@ -175,12 +178,19 @@ test("la Scheda gestisce la Shortlist senza alterare Ranking, Scarsità o Altern
   await page.getByRole("button", { name: "Apri Scheda d’asta" }).click();
   const card = page.getByRole("region", { name: "Scheda d’asta" });
   const alternatives = card.getByRole("list", { name: "Alternative immediate" });
+  const readAlternatives = () => alternatives.locator("[data-alternative-row]").evaluateAll(
+    (rows) => rows.map((row) => ({
+      cells: [...row.querySelectorAll("[data-alternative-cell]")]
+        .map((cell) => cell.textContent.trim()),
+      shortlist: row.querySelector(".alternative-shortlist")?.textContent.trim() ?? "",
+    })),
+  );
   assert.deepEqual(
-    await alternatives.getByRole("listitem").allTextContents(),
+    await readAlternatives(),
     [
-      "GIOCATORE_P_03 · CLUB_07 · PFC 1",
-      "GIOCATORE_P_05 · CLUB_07 · PFC 1 · Osservati",
-      "GIOCATORE_P_06 · CLUB_12 · PFC 1",
+      { cells: ["GIOCATORE_P_03", "CLUB_07", "PFC 1"], shortlist: "" },
+      { cells: ["GIOCATORE_P_05", "CLUB_07", "PFC 1"], shortlist: "Shortlist: Osservati" },
+      { cells: ["GIOCATORE_P_06", "CLUB_12", "PFC 1"], shortlist: "" },
     ],
   );
 
@@ -198,11 +208,11 @@ test("la Scheda gestisce la Shortlist senza alterare Ranking, Scarsità o Altern
     ["Slot 1 1 disponibile", "Slot 2 1 disponibile", "Slot 3 6 disponibili"],
   );
   assert.deepEqual(
-    await alternatives.getByRole("listitem").allTextContents(),
+    await readAlternatives(),
     [
-      "GIOCATORE_P_03 · CLUB_07 · PFC 1",
-      "GIOCATORE_P_05 · CLUB_07 · PFC 1 · Osservati",
-      "GIOCATORE_P_06 · CLUB_12 · PFC 1",
+      { cells: ["GIOCATORE_P_03", "CLUB_07", "PFC 1"], shortlist: "" },
+      { cells: ["GIOCATORE_P_05", "CLUB_07", "PFC 1"], shortlist: "Shortlist: Osservati" },
+      { cells: ["GIOCATORE_P_06", "CLUB_12", "PFC 1"], shortlist: "" },
     ],
   );
 

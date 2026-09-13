@@ -811,6 +811,7 @@ function render(
   }
   purchaseForm?.addEventListener("submit", (event) => {
     event.preventDefault();
+    const scrollPosition = window.scrollY;
     const teamInput = purchaseForm.elements.namedItem("teamId");
     const priceInput = purchaseForm.elements.namedItem("finalPrice");
     viewState.assignmentTeamId = teamInput instanceof HTMLSelectElement ? teamInput.value : "";
@@ -838,6 +839,7 @@ function render(
     }
 
     render(root, application, viewState, [], "", result.error, "purchase");
+    window.scrollTo(0, scrollPosition);
   });
 
   root.querySelectorAll<HTMLButtonElement>("[data-edit-purchase]").forEach((button) => {
@@ -1777,7 +1779,10 @@ function renderAuctionCard(
       : "In linea";
   const signedHistoricalMarketDifference = `${historicalMarketDifferencePercent > 0 ? "+" : ""}${Math.round(historicalMarketDifferencePercent)}%`;
   const adaptation = rolePriceAdaptation(auction, state.catalog, player);
-  const observationLabel = adaptation?.observations === 1 ? "Acquisto" : "Acquisti";
+  const roleObservations = auction.purchases.filter((purchase) =>
+    state.catalog.find((candidate) => candidate.name === purchase.playerName)?.role === player.role
+  ).length;
+  const roleObservationLabel = roleObservations === 1 ? "Acquisto" : "Acquisti";
   const signedAuctionDeviation = adaptation
     ? `${adaptation.deviationPercent > 0 ? "+" : ""}${adaptation.deviationPercent}%`
     : "";
@@ -1785,49 +1790,64 @@ function renderAuctionCard(
 
   return `
     <article class="auction-card">
-      <div class="auction-card-heading">
-        <div>
-          <h3 tabindex="-1" data-player-heading>${escapeHtml(player.name)}</h3>
-          <p>${escapeHtml(player.team)} · ${roleNames[player.role]} · Slot ${player.slot}${profile ? ` · <span class="sos-fanta-tier">${escapeHtml(profile.tier)}</span>` : ""}</p>
+      <section class="auction-decision" aria-label="Decisione per ${escapeHtml(player.name)}">
+        <div class="auction-card-heading">
+          <div>
+            <h3 tabindex="-1" data-player-heading>${escapeHtml(player.name)}</h3>
+            <dl class="player-identity" data-player-identity>
+              <div><dt class="visually-hidden">Squadra reale</dt><dd>${escapeHtml(player.team)}</dd></div>
+              <div><dt class="visually-hidden">Ruolo Classic</dt><dd>${roleNames[player.role]}</dd></div>
+              <div><dt class="visually-hidden">Slot</dt><dd>Slot ${player.slot}</dd></div>
+              ${profile ? `<div><dt class="visually-hidden">Fascia editoriale SOS Fanta</dt><dd class="sos-fanta-tier">${escapeHtml(profile.tier)}</dd></div>` : ""}
+            </dl>
+          </div>
+          <button type="button" class="icon-button" data-close-auction-card aria-label="Chiudi Scheda d’asta">${renderTablerIcon("x")}</button>
         </div>
-        <button type="button" class="icon-button" data-close-auction-card aria-label="Chiudi Scheda d’asta">${renderTablerIcon("x")}</button>
-      </div>
-      ${unavailableToMainTeam
-        ? `<p class="unavailable-player">Il ruolo ${roleNames[player.role]} è completo nella tua rosa. Puoi ancora assegnare il calciatore a una Squadra avversaria.</p>`
-        : ""}
-      <section class="market-signals" aria-label="Segnali di mercato">
-        <h4>Segnali di mercato</h4>
-        <div class="signal-groups">
-          <section class="signal-group" aria-labelledby="provider-signals-title">
-            <h5 id="provider-signals-title">Provider</h5>
-            <dl>
-              <div><dt>PFC</dt><dd>${numberFormatter.format(Math.round(player.pfc))}</dd></div>
-            </dl>
-          </section>
-          <section class="signal-group" aria-labelledby="historical-signals-title">
-            <h5 id="historical-signals-title">Mercato storico</h5>
-            <dl>
-              <div><dt>PMA</dt><dd>${numberFormatter.format(Math.round(player.pma))}</dd></div>
-              <div><dt>Percezione storica di mercato</dt><dd>${perception} · ${signedHistoricalMarketDifference}</dd></div>
-            </dl>
-          </section>
-          <section class="signal-group" aria-labelledby="performance-signals-title">
-            <h5 id="performance-signals-title">Prestazioni attese</h5>
-            <dl>
-              <div><dt>Fantamedia prevista</dt><dd>${numberFormatter.format(player.expectedFantamedia)}</dd></div>
-              <div><dt>Titolarità prevista</dt><dd>${Math.round(player.expectedTitolarita)}%</dd></div>
-            </dl>
-          </section>
-          <section class="signal-group live-signal-group" aria-labelledby="live-signals-title">
-            <h5 id="live-signals-title">Asta live</h5>
-            <dl>
-              ${adaptation ? `
-                <div><dt>Prezzo adattato all’asta</dt><dd>${numberFormatter.format(adaptation.adaptedPrice)} crediti</dd></div>
-                <div><dt>Scostamento d’asta per ruolo</dt><dd>${signedAuctionDeviation}</dd></div>
-                <div><dt>Osservazioni</dt><dd>${adaptation.observations} ${observationLabel}</dd></div>
-              ` : "<div><dt>Prezzo adattato all’asta</dt><dd>Dati insufficienti</dd></div>"}
-            </dl>
-          </section>
+        ${unavailableToMainTeam
+          ? `<p class="unavailable-player">Il ruolo ${roleNames[player.role]} è completo nella tua rosa. Puoi ancora assegnare il calciatore a una Squadra avversaria.</p>`
+          : ""}
+        <section class="market-signals" aria-label="Segnali di mercato">
+          <h4 class="visually-hidden">Segnali di mercato</h4>
+          <div class="decision-signals">
+            <section class="decision-signal provider-signal" role="group" aria-label="Riferimento provider">
+              <span class="decision-source">Provider</span>
+              <dl><div><dt>PFC</dt><dd>${numberFormatter.format(Math.round(player.pfc))}</dd></div></dl>
+            </section>
+            <section class="decision-signal live-signal" role="group" aria-label="Segnale Asta attiva">
+              <span class="decision-source">Asta attiva</span>
+              <dl>
+                <div>
+                  <dt>Prezzo adattato all’asta</dt>
+                  ${adaptation
+                    ? `<dd>${numberFormatter.format(adaptation.adaptedPrice)} crediti</dd>
+                      <dd class="decision-detail"><span>${roleObservations} ${roleObservationLabel}</span> nel ruolo, scostamento <span>${signedAuctionDeviation}</span></dd>`
+                    : `<dd>Dati insufficienti</dd>
+                      <dd class="decision-detail">${roleObservations} di ${auction.configuration.adaptationThreshold} acquisti nel ruolo</dd>`}
+                </div>
+              </dl>
+            </section>
+          </div>
+          <div class="secondary-signals">
+            <section class="signal-group" aria-labelledby="historical-signals-title">
+              <h5 id="historical-signals-title">Mercato storico</h5>
+              <dl>
+                <div><dt>PMA</dt><dd>${numberFormatter.format(Math.round(player.pma))}</dd></div>
+                <div><dt>Percezione storica di mercato</dt><dd>${perception} · <span>${signedHistoricalMarketDifference}</span></dd></div>
+              </dl>
+            </section>
+            <section class="signal-group" aria-labelledby="performance-signals-title">
+              <h5 id="performance-signals-title">Prestazioni attese</h5>
+              <dl>
+                <div><dt>Fantamedia prevista</dt><dd>${numberFormatter.format(player.expectedFantamedia)}</dd></div>
+                <div><dt>Titolarità prevista</dt><dd>${Math.round(player.expectedTitolarita)}%</dd></div>
+              </dl>
+            </section>
+          </div>
+        </section>
+        <div class="purchase-slot">
+          ${viewState.assignmentOpen
+            ? renderPurchaseForm(auction, state.catalog, player, viewState, operationError)
+            : '<button type="button" class="auction-assign" data-open-purchase>Assegna giocatore</button>'}
         </div>
       </section>
       ${profile?.text ? `
@@ -1836,10 +1856,6 @@ function renderAuctionCard(
           <p>${escapeHtml(profile.text)}</p>
         </details>
       ` : ""}
-      <button type="button" data-open-purchase>Assegna giocatore</button>
-      ${viewState.assignmentOpen
-        ? renderPurchaseForm(auction, state.catalog, player, viewState, operationError)
-        : ""}
       ${renderAuctionCardShortlist(player, state)}
       ${renderImmediateAlternatives(player, state)}
     </article>
@@ -1853,11 +1869,18 @@ function renderPurchaseForm(
   viewState: AuctionViewState,
   operationError: string,
 ): string {
+  const teamError = operationError.includes("Squadra") ? operationError : "";
+  const priceError = operationError.includes("prezzo finale") ? operationError : "";
+  const formError = operationError && !teamError && !priceError ? operationError : "";
   return `
-    <form class="purchase-panel" data-purchase-form>
+    <form class="purchase-panel" data-purchase-form aria-label="Registra Acquisto">
       <h4>Registra Acquisto</h4>
       <label>Squadra
-        <select name="teamId" required>
+        <select
+          name="teamId"
+          required
+          ${teamError ? 'aria-invalid="true" aria-describedby="purchase-team-error"' : ""}
+        >
           <option value="">Seleziona una Squadra</option>
           ${auction.teams.map((team) => {
             const mainTeamLabel = team.isMain ? " · Squadra principale" : "";
@@ -1869,16 +1892,26 @@ function renderPurchaseForm(
               data-role-occupancy="${occupied}/${total}"
               data-maximum-spendable="${team.isMain ? maximumSpendable(auction, team.id) : ""}"
               ${viewState.assignmentTeamId === team.id ? "selected" : ""}
-            >${escapeHtml(team.name)}${mainTeamLabel} · ${numberFormatter.format(remainingTeamBudget(auction, team.id))} crediti</option>`;
+            >${escapeHtml(team.name)}${mainTeamLabel} - ${numberFormatter.format(remainingTeamBudget(auction, team.id))} crediti</option>`;
           }).join("")}
         </select>
+        ${teamError ? `<span class="field-error" id="purchase-team-error" role="alert">${escapeHtml(teamError)}</span>` : ""}
       </label>
       <label>Prezzo finale
-        <input name="finalPrice" type="number" min="1" step="1" value="${escapeHtml(viewState.assignmentPrice)}" required />
+        <input
+          name="finalPrice"
+          type="number"
+          min="1"
+          step="1"
+          value="${escapeHtml(viewState.assignmentPrice)}"
+          required
+          ${priceError ? 'aria-invalid="true" aria-describedby="purchase-price-error"' : ""}
+        />
+        ${priceError ? `<span class="field-error" id="purchase-price-error" role="alert">${escapeHtml(priceError)}</span>` : ""}
       </label>
       <button type="submit">Registra Acquisto</button>
       <p class="purchase-context" data-purchase-context aria-live="polite">Seleziona una Squadra per vedere budget e capienza del ruolo.</p>
-      ${operationError ? `<p class="errors" role="alert">${escapeHtml(operationError)}</p>` : ""}
+      ${formError ? `<p class="inline-error" role="alert">${escapeHtml(formError)}</p>` : ""}
     </form>
   `;
 }
@@ -1958,9 +1991,16 @@ function renderImmediateAlternatives(player: Player, state: Readonly<AppState>):
               .filter((category) => category.playerNames.includes(alternative.name))
               .map((category) => category.name);
             const shortlist = categories.length > 0
-              ? ` · ${categories.map(escapeHtml).join(" · ")}`
+              ? `<span class="alternative-shortlist">Shortlist: ${categories.map(escapeHtml).join(", ")}</span>`
               : "";
-            return `<li><button type="button" class="alternative-button" data-call-player="${escapeHtml(alternative.name)}">${escapeHtml(alternative.name)} · ${escapeHtml(alternative.team)} · PFC ${numberFormatter.format(Math.round(alternative.pfc))}${shortlist}</button></li>`;
+            return `<li data-alternative-row>
+              <button type="button" class="alternative-button" data-call-player="${escapeHtml(alternative.name)}">
+                <span class="alternative-name" data-alternative-cell>${escapeHtml(alternative.name)}</span>
+                <span class="alternative-team" data-alternative-cell>${escapeHtml(alternative.team)}</span>
+                <span class="alternative-pfc" data-alternative-cell>PFC ${numberFormatter.format(Math.round(alternative.pfc))}</span>
+                ${shortlist}
+              </button>
+            </li>`;
           }).join("")}</ul>`
         : "<p>Nessun altro disponibile nello stesso Ruolo e Slot.</p>"}
     </section>

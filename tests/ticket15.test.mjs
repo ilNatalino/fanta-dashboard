@@ -46,7 +46,7 @@ test("un Acquisto valido aggiorna atomicamente disponibilità, budget e inventar
   await card.getByRole("button", { name: "Assegna giocatore" }).click();
 
   assert.equal(await card.getByLabel("Squadra").inputValue(), "");
-  assert.equal(await card.getByLabel("Squadra").getByRole("option", { name: /I Falchi · Squadra principale/ }).count(), 1);
+  assert.equal(await card.getByLabel("Squadra").getByRole("option", { name: /I Falchi.*Squadra principale.*1\.000 crediti/ }).count(), 1);
   assert.equal(await card.getByLabel("Squadra").getAttribute("required"), "");
   assert.equal(await card.getByLabel("Prezzo finale").getAttribute("required"), "");
 
@@ -81,7 +81,7 @@ test("un Acquisto valido aggiorna atomicamente disponibilità, budget e inventar
   await openPlayer(page, "GIOCATORE_D_02");
   await card.getByRole("button", { name: "Assegna giocatore" }).click();
   assert.equal(
-    await card.getByLabel("Squadra").getByRole("option", { name: "Squadra 2 · 843 crediti" }).count(),
+    await card.getByLabel("Squadra").getByRole("option", { name: /Squadra 2.*843 crediti/ }).count(),
     1,
   );
 
