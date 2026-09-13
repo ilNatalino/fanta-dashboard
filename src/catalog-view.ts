@@ -253,6 +253,9 @@ function render(
   operationError = "",
   operationTarget: OperationTarget = "import",
 ): void {
+  const previousActiveView = root.querySelector<HTMLElement>(
+    '.primary-navigation [aria-current="page"]',
+  )?.dataset.auctionView;
   const previousRanking = root.querySelector<HTMLElement>("[data-ranking-list]");
   if (previousRanking) viewState.rankingScrollTop = previousRanking.scrollTop;
   const previousCatalog = root.querySelector<HTMLElement>(".table-frame");
@@ -294,6 +297,10 @@ function render(
   if (nextCatalog) {
     nextCatalog.scrollTop = viewState.catalogScrollTop;
     nextCatalog.scrollLeft = viewState.catalogScrollLeft;
+  }
+  if (previousActiveView !== viewState.activeView) {
+    root.querySelector<HTMLElement>('.primary-navigation [aria-current="page"]')
+      ?.scrollIntoView({ block: "nearest", inline: "center" });
   }
 
   root.querySelector<HTMLButtonElement>("[data-theme-toggle]")?.addEventListener("click", (event) => {
@@ -2009,10 +2016,24 @@ function renderActiveHeader(
             : ""}
         </form>
         <div class="compact-team-summary" role="group" aria-label="Riepilogo ${escapeHtml(mainTeam.name)}">
-          <strong>${escapeHtml(mainTeam.name)}</strong>
-          <span>${numberFormatter.format(remainingTeamBudget(auction, mainTeam.id))} crediti residui</span>
-          <span>${numberFormatter.format(maximumSpendable(auction, mainTeam.id))} crediti spendibili</span>
-          <span>${occupiedSlots}/${totalSlots} posti</span>
+          <div class="team-summary-identity">
+            <span>Squadra principale</span>
+            <strong>${escapeHtml(mainTeam.name)}</strong>
+          </div>
+          <dl>
+            <div>
+              <dt>Budget residuo</dt>
+              <dd>${numberFormatter.format(remainingTeamBudget(auction, mainTeam.id))} crediti residui</dd>
+            </div>
+            <div>
+              <dt>Massimo spendibile</dt>
+              <dd>${numberFormatter.format(maximumSpendable(auction, mainTeam.id))} crediti spendibili</dd>
+            </div>
+            <div>
+              <dt>Posti di ruolo</dt>
+              <dd>${occupiedSlots}/${totalSlots} posti</dd>
+            </div>
+          </dl>
         </div>
         <span class="session-status" role="status">${isAuctionComplete(auction, state.catalog) ? "Asta completa" : "Asta avviata"}</span>
       </div>

@@ -338,7 +338,7 @@ button:disabled {
   display: block;
   border: 1px solid var(--header-border);
   border-radius: var(--radius-panel);
-  padding: 0.75rem;
+  padding: 0.375rem;
   background: var(--page);
   box-shadow: 0 0.75rem 2rem var(--shadow);
 }
@@ -350,18 +350,18 @@ button:disabled {
 .topbar-primary {
   display: grid;
   grid-template-columns: auto minmax(0, 1fr) auto;
-  gap: 1rem;
+  gap: 0.75rem;
   align-items: center;
 }
 
 .auction-command-bar {
   display: grid;
-  grid-template-columns: minmax(24rem, 1fr) auto auto;
-  gap: 1rem;
+  grid-template-columns: minmax(20rem, 1fr) auto auto;
+  gap: 0.75rem;
   align-items: end;
-  margin-top: 0.75rem;
+  margin-top: 0.375rem;
   border-top: 1px solid var(--header-border);
-  padding-top: 0.75rem;
+  padding-top: 0.375rem;
 }
 
 .primary-navigation {
@@ -372,10 +372,10 @@ button:disabled {
 .primary-navigation a,
 .primary-navigation span {
   display: inline-flex;
-  min-height: 2.75rem;
+  min-height: 2.25rem;
   align-items: center;
-  border-radius: var(--radius-control);
-  padding: 0.65rem 0.8rem;
+  border-radius: 0;
+  padding: 0.4rem 0.7rem;
   color: var(--text-muted);
   font-weight: 750;
   text-decoration: none;
@@ -390,11 +390,11 @@ button:disabled {
 .primary-navigation a[aria-current="page"] {
   border-bottom: 3px solid var(--accent-border);
   color: var(--accent-text);
-  background: var(--surface-selected);
+  background: transparent;
   font-weight: 800;
 }
 
-.header-player-search {
+.auction-command-bar .header-player-search {
   margin-top: 0;
 }
 
@@ -404,11 +404,11 @@ button:disabled {
 
 .session-status {
   display: inline-grid;
-  min-height: 2.75rem;
+  min-height: 2.25rem;
   place-items: center;
   border: 1px solid var(--border);
   border-radius: var(--radius-control);
-  padding: 0.65rem 0.85rem;
+  padding: 0.4rem 0.75rem;
   color: var(--text-soft);
   background: var(--control);
   font-size: 0.78rem;
@@ -418,13 +418,68 @@ button:disabled {
 
 .compact-team-summary {
   display: grid;
-  gap: 0.15rem;
+  grid-template-columns: auto auto;
+  gap: 0.75rem;
+  align-items: stretch;
   color: var(--text-muted);
-  font-size: 0.78rem;
+  font-size: 0.72rem;
 }
 
-.compact-team-summary strong {
+.team-summary-identity {
+  display: grid;
+  min-width: 8rem;
+  align-content: center;
+  border-right: 1px solid var(--divider);
+  padding-right: 0.75rem;
+}
+
+.team-summary-identity span,
+.compact-team-summary dt {
+  color: var(--text-subtle);
+  font-size: 0.65rem;
+  font-weight: 700;
+  letter-spacing: 0.05em;
+  line-height: 1.15;
+  text-transform: uppercase;
+}
+
+.team-summary-identity strong {
   color: var(--text-primary);
+  font-family: "Barlow Semi Condensed", "Barlow", system-ui, sans-serif;
+  font-size: 1rem;
+  line-height: 1.1;
+}
+
+.compact-team-summary dl {
+  display: grid;
+  grid-template-columns: repeat(3, auto);
+  gap: 0.75rem;
+  margin: 0;
+}
+
+.compact-team-summary dl > div {
+  display: grid;
+  align-content: center;
+  min-width: 7.25rem;
+}
+
+.compact-team-summary dt,
+.compact-team-summary dd {
+  margin: 0;
+}
+
+.compact-team-summary dd {
+  color: var(--text-secondary);
+  font-weight: 700;
+  line-height: 1.15;
+  white-space: nowrap;
+}
+
+.active-topbar .theme-toggle {
+  width: 2.25rem;
+  min-width: 2.25rem;
+  height: 2.25rem;
+  min-height: 2.25rem;
 }
 
 .roster-view {
@@ -1734,6 +1789,7 @@ tbody tr:hover th[scope="row"] {
 
   .topbar-primary {
     grid-template-columns: minmax(0, 1fr) auto;
+    row-gap: 0.25rem;
   }
 
   .topbar-primary .primary-navigation {
@@ -1879,9 +1935,26 @@ tbody tr:hover th[scope="row"] {
   }
 
   .compact-team-summary {
+    grid-template-columns: 1fr;
+    gap: 0.5rem;
+  }
+
+  .team-summary-identity {
     display: flex;
-    flex-wrap: wrap;
-    gap: 0.25rem 0.75rem;
+    gap: 0.5rem;
+    align-items: baseline;
+    border-right: 0;
+    padding-right: 0;
+  }
+
+  .compact-team-summary dl {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    border-top: 1px solid var(--divider);
+    padding-top: 0.5rem;
+  }
+
+  .compact-team-summary dl > div {
+    min-width: 0;
   }
 
   .session-status {
@@ -1950,6 +2023,21 @@ tbody tr:hover th[scope="row"] {
 
   h1 {
     font-size: clamp(2.5rem, 14vw, 4.5rem);
+  }
+}
+
+@media (pointer: coarse) {
+  .primary-navigation a,
+  .primary-navigation span,
+  .active-topbar .theme-toggle,
+  .active-topbar input {
+    min-width: 2.75rem;
+    min-height: 2.75rem;
+  }
+
+  .active-topbar .theme-toggle {
+    width: 2.75rem;
+    height: 2.75rem;
   }
 }
 
