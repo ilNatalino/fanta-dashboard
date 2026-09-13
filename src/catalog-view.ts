@@ -759,6 +759,7 @@ function render(
   root.querySelector<HTMLSelectElement>("[data-shortlist-filter]")
     ?.addEventListener("change", (event) => {
       viewState.shortlistCategory = (event.currentTarget as HTMLSelectElement).value;
+      if (!viewState.shortlistCategory) viewState.showPurchasedShortlist = false;
       viewState.rankingScrollTop = 0;
       render(root, application, viewState);
     });
@@ -1666,49 +1667,59 @@ function renderRanking(
       .sort((left, right) => compareRankedPlayers(left, right, viewState.rankingSort))
     : [];
   return `
-    <div class="role-tabs" aria-label="Ruolo Classic">${Object.entries(roleNames).map(
+    <div class="role-tabs" role="group" aria-label="Ruolo Classic">${Object.entries(roleNames).map(
       ([value, label]) => `<button
         type="button"
         data-select-role="${value}"
         aria-pressed="${role === value}"
       >${label}</button>`,
     ).join("")}</div>
-    <label class="ranking-sort">Ordina ranking
-      <select data-ranking-sort>
-        <option value="pfc" ${viewState.rankingSort === "pfc" ? "selected" : ""}>PFC decrescente</option>
-        <option value="slot" ${viewState.rankingSort === "slot" ? "selected" : ""}>Slot crescente</option>
-        <option value="pma" ${viewState.rankingSort === "pma" ? "selected" : ""}>PMA decrescente</option>
-        <option value="expectedFantamedia" ${viewState.rankingSort === "expectedFantamedia" ? "selected" : ""}>Fantamedia decrescente</option>
-        <option value="expectedTitolarita" ${viewState.rankingSort === "expectedTitolarita" ? "selected" : ""}>Titolarità decrescente</option>
-      </select>
-    </label>
-    <label class="ranking-sort">Filtra per categoria
-      <select data-shortlist-filter>
-        <option value="">Tutti i disponibili</option>
-        ${state.shortlistCategories.map((category) => `
-          <option value="${escapeHtml(category.name)}" ${selectedCategory === category ? "selected" : ""}>${escapeHtml(category.name)}</option>
-        `).join("")}
-      </select>
-    </label>
-    <label class="ranking-checkbox">
-      <input
-        type="checkbox"
-        data-show-purchased-shortlist
-        ${viewState.showPurchasedShortlist ? "checked" : ""}
-        ${selectedCategory ? "" : "disabled"}
-      />
-      Mostra anche gli acquistati nella Shortlist
-    </label>
+    <div class="ranking-controls">
+      <label class="ranking-sort">Ordina ranking
+        <select data-ranking-sort>
+          <option value="pfc" ${viewState.rankingSort === "pfc" ? "selected" : ""}>PFC decrescente</option>
+          <option value="slot" ${viewState.rankingSort === "slot" ? "selected" : ""}>Slot crescente</option>
+          <option value="pma" ${viewState.rankingSort === "pma" ? "selected" : ""}>PMA decrescente</option>
+          <option value="expectedFantamedia" ${viewState.rankingSort === "expectedFantamedia" ? "selected" : ""}>Fantamedia decrescente</option>
+          <option value="expectedTitolarita" ${viewState.rankingSort === "expectedTitolarita" ? "selected" : ""}>Titolarità decrescente</option>
+        </select>
+      </label>
+      <label class="ranking-sort">Filtra per categoria
+        <select data-shortlist-filter>
+          <option value="">Tutti i disponibili</option>
+          ${state.shortlistCategories.map((category) => `
+            <option value="${escapeHtml(category.name)}" ${selectedCategory === category ? "selected" : ""}>${escapeHtml(category.name)}</option>
+          `).join("")}
+        </select>
+      </label>
+      ${selectedCategory ? `<label class="ranking-checkbox">
+        <input
+          type="checkbox"
+          data-show-purchased-shortlist
+          ${viewState.showPurchasedShortlist ? "checked" : ""}
+        />
+        Mostra anche gli acquistati nella Shortlist
+      </label>` : ""}
+    </div>
     ${selectedCategory && viewState.showPurchasedShortlist ? `
       <h3>Acquistati nella Shortlist</h3>
       <ul class="ranking-list" aria-label="Acquistati nella Shortlist">${purchasedShortlistPlayers.map((player) =>
-        `<li><button type="button" data-call-player="${escapeHtml(player.name)}" ${viewState.selectedPlayerName === player.name ? 'aria-current="true"' : ""}><span>${escapeHtml(player.name)}</span><span class="ranking-metric"> · ${renderRankingValue(player, viewState.rankingSort)} · Acquistato</span></button></li>`,
+        renderRankingPlayer(player, viewState, true),
       ).join("")}</ul>
     ` : ""}
     <ol class="ranking-list" data-ranking-list aria-label="Ranking ${roleNames[role]}">${players.map((player) =>
-      `<li><button type="button" data-call-player="${escapeHtml(player.name)}" ${viewState.selectedPlayerName === player.name ? 'aria-current="true"' : ""}><span>${escapeHtml(player.name)}</span><span class="ranking-metric"> · ${renderRankingValue(player, viewState.rankingSort)}</span></button></li>`,
+      renderRankingPlayer(player, viewState),
     ).join("")}</ol>
   `;
+}
+
+function renderRankingPlayer(
+  player: Player,
+  viewState: AuctionViewState,
+  purchased = false,
+): string {
+  const selected = viewState.selectedPlayerName === player.name;
+  return `<li><button type="button" data-call-player="${escapeHtml(player.name)}" ${selected ? 'aria-current="true" aria-controls="auction-card"' : ""}><span>${escapeHtml(player.name)}</span><span class="ranking-metric"> · ${renderRankingValue(player, viewState.rankingSort)}${purchased ? " · Acquistato" : ""}</span></button></li>`;
 }
 
 function renderScarcity(
@@ -1725,8 +1736,9 @@ function renderScarcity(
       (_, index) => {
         const slot = index + 1;
         const count = availableRolePlayers.filter((player) => player.slot === slot).length;
-        const availability = count === 1 ? "disponibile" : "disponibili";
-        return `<li aria-label="Slot ${slot}: ${count} ${availability}"><span>Slot ${slot}</span> <strong>${count}</strong> <span>${availability}</span></li>`;
+        const availability = count === 0 ? "Esaurito" : count === 1 ? "disponibile" : "disponibili";
+        const description = count === 0 ? "nessun calciatore disponibile" : `${count} ${availability}`;
+        return `<li aria-label="Slot ${slot}: ${description}"><span>Slot ${slot}</span> <span class="scarcity-count"><strong>${count}</strong> <span>${availability}</span></span></li>`;
       },
     ).join("")}</ul>
   `;
@@ -1789,7 +1801,7 @@ function renderAuctionCard(
   const profile = viewState.sosFantaProfiles[player.name];
 
   return `
-    <article class="auction-card">
+    <article class="auction-card" id="auction-card">
       <section class="auction-decision" aria-label="Decisione per ${escapeHtml(player.name)}">
         <div class="auction-card-heading">
           <div>

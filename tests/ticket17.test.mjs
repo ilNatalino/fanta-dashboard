@@ -89,7 +89,7 @@ test("la Correzione dell'acquisto è precompilata e aggiorna Squadra, prezzo, bu
     /880 crediti residui[\s\S]*1\/25 posti/,
   );
   assert.equal(
-    await page.getByRole("list", { name: "Scarsità DIF" }).locator('[aria-label="Slot 1: 0 disponibili"]').isVisible(),
+    await page.getByRole("list", { name: "Scarsità DIF" }).locator('[aria-label="Slot 1: nessun calciatore disponibile"]').isVisible(),
     true,
   );
   await openView(page, "La mia rosa");

@@ -1097,13 +1097,23 @@ select[aria-invalid="true"] {
   font-weight: 800;
 }
 
+.ranking-controls {
+  display: grid;
+  gap: 0.65rem;
+  margin-top: 0.75rem;
+}
+
 .ranking-sort {
   display: grid;
   gap: 0.4rem;
-  margin-top: 1rem;
   color: var(--text-secondary);
   font-size: 0.75rem;
   font-weight: 700;
+}
+
+.ranking-sort select,
+.ranking-checkbox {
+  min-height: 2.75rem;
 }
 
 .ranking-checkbox {
@@ -1121,7 +1131,6 @@ select[aria-invalid="true"] {
 
 .ranking-list {
   display: grid;
-  gap: 0.35rem;
   max-height: 24rem;
   margin: 1rem 0;
   padding: 0;
@@ -1130,21 +1139,23 @@ select[aria-invalid="true"] {
 }
 
 .ranking-list button {
-  display: flex;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) max-content;
   width: 100%;
   min-height: 2.75rem;
-  justify-content: space-between;
   gap: 0.75rem;
   align-items: center;
-  padding: 0.55rem 0.65rem;
+  border-radius: 0;
+  border-top: 1px solid var(--divider);
+  padding: 0.55rem 0.65rem 0.55rem 0.85rem;
   color: var(--text-secondary);
-  background: var(--surface-control);
+  background: transparent;
   font-size: 0.82rem;
   text-align: left;
 }
 
 .ranking-list button[aria-current="true"] {
-  outline: 2px solid var(--accent-border);
+  border-left: 3px solid var(--accent-border);
   color: var(--text-primary);
   background: var(--surface-selected);
   font-weight: 800;
@@ -1155,6 +1166,7 @@ select[aria-invalid="true"] {
   color: var(--text-soft);
   font-variant-numeric: tabular-nums;
   font-weight: 800;
+  text-align: right;
 }
 
 .scarcity-list {
@@ -1168,17 +1180,23 @@ select[aria-invalid="true"] {
 
 .scarcity-list li {
   display: grid;
-  grid-template-columns: 1fr auto auto;
+  grid-template-columns: minmax(0, 1fr) auto;
   gap: 0.4rem;
   align-items: baseline;
-  border: 1px solid var(--border);
-  border-radius: var(--radius-control);
-  padding: 0.45rem 0.55rem;
+  border-top: 1px solid var(--divider);
+  padding: 0.55rem 0;
   font-size: 0.78rem;
   font-variant-numeric: tabular-nums;
 }
 
-.scarcity-list strong {
+.scarcity-count {
+  display: inline-flex;
+  gap: 0.35rem;
+  justify-content: end;
+  align-items: baseline;
+}
+
+.scarcity-count strong {
   color: var(--text-primary);
 }
 
@@ -1906,7 +1924,7 @@ tbody tr:hover th[scope="row"] {
   }
 
   .auction-command-center {
-    grid-template-columns: repeat(2, minmax(0, 1fr));
+    grid-template-columns: minmax(0, 1fr);
   }
 
   .auction-card-panel {
@@ -1920,8 +1938,8 @@ tbody tr:hover th[scope="row"] {
   }
 
   .auction-scarcity {
-    grid-column: 2;
-    grid-row: 2;
+    grid-column: 1;
+    grid-row: 3;
   }
 
   .roster-columns,

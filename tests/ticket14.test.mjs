@@ -112,6 +112,12 @@ test("Ranking, ordinamenti trasparenti e Scarsità restano distinti per Ruolo Cl
   const region = page.getByRole("region", { name: "Ranking" });
   const scarcity = page.getByRole("region", { name: "Scarsità per slot" });
 
+  const rankingControlSizes = await region.locator(".role-tabs button, .ranking-sort select")
+    .evaluateAll((controls) => controls.map((control) => {
+      const { width, height } = control.getBoundingClientRect();
+      return { width, height };
+    }));
+  assert.equal(rankingControlSizes.every(({ width, height }) => width >= 44 && height >= 44), true);
   await region.getByRole("button", { name: "ATT", exact: true }).click();
   assert.deepEqual(
     await region.getByRole("list", { name: "Ranking ATT" }).getByRole("listitem").allTextContents(),
@@ -177,6 +183,7 @@ test("la Scheda gestisce la Shortlist senza alterare Ranking, Scarsità o Altern
   await page.getByLabel("Cerca il Calciatore chiamato").fill("GIOCATORE_P_04");
   await page.getByRole("button", { name: "Apri Scheda d’asta" }).click();
   const card = page.getByRole("region", { name: "Scheda d’asta" });
+  const ranking = page.getByRole("region", { name: "Ranking" });
   const alternatives = card.getByRole("list", { name: "Alternative immediate" });
   const readAlternatives = () => alternatives.locator("[data-alternative-row]").evaluateAll(
     (rows) => rows.map((row) => ({
@@ -194,11 +201,18 @@ test("la Scheda gestisce la Shortlist senza alterare Ranking, Scarsità o Altern
     ],
   );
 
+  assert.equal(
+    await ranking.getByLabel("Mostra anche gli acquistati nella Shortlist").count(),
+    0,
+  );
   await card.getByLabel("Osservati").check();
   assert.equal(await card.getByText("In Shortlist").isVisible(), true);
-  await page.getByRole("region", { name: "Ranking" })
-    .getByLabel("Filtra per categoria")
+  await ranking.getByLabel("Filtra per categoria")
     .selectOption({ label: "Osservati" });
+  assert.equal(
+    await ranking.getByLabel("Mostra anche gli acquistati nella Shortlist").isVisible(),
+    true,
+  );
   assert.deepEqual(
     await page.getByRole("list", { name: "Ranking POR" }).getByRole("listitem").allTextContents(),
     ["GIOCATORE_P_04 · PFC 1", "GIOCATORE_P_05 · PFC 1"],
@@ -264,7 +278,7 @@ test("la Scarsità include gli Slot del Ruolo che hanno zero disponibili", async
 
   assert.deepEqual(
     await page.getByRole("list", { name: "Scarsità POR" }).getByRole("listitem").allTextContents(),
-    ["Slot 1 1 disponibile", "Slot 2 0 disponibili", "Slot 3 2 disponibili"],
+    ["Slot 1 1 disponibile", "Slot 2 0 Esaurito", "Slot 3 2 disponibili"],
   );
 
   await page.close();

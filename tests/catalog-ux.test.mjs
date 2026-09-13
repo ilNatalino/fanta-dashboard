@@ -194,6 +194,7 @@ test("il Ranking conserva posizione e selezione e il modulo Acquisto riceve il f
 
   assert.equal(await ranking.evaluate((element) => element.scrollTop), scrollBeforeSelection);
   assert.equal(await player.getAttribute("aria-current"), "true");
+  assert.equal(await player.getAttribute("aria-controls"), "auction-card");
 
   await page.getByRole("region", { name: "Scheda d’asta" })
     .getByRole("button", { name: "Assegna giocatore" })
@@ -214,8 +215,12 @@ test("il command center non crea overflow orizzontale nella fascia tablet", asyn
   );
   assert.equal(
     await page.locator(".auction-command-center").evaluate((element) => getComputedStyle(element).gridTemplateColumns.split(" ").length),
-    2,
+    1,
   );
+  const tops = await Promise.all(["Scheda d’asta", "Ranking", "Scarsità per slot"].map((name) =>
+    page.getByRole("region", { name }).evaluate((element) => element.getBoundingClientRect().top),
+  ));
+  assert.equal(tops[0] < tops[1] && tops[1] < tops[2], true);
 
   await page.close();
 });
