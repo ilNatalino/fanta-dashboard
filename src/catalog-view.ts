@@ -35,6 +35,7 @@ type AuctionViewState = {
   playerSearchQuery: string;
   playerSearchError: string;
   rankingScrollTop: number;
+  purchasedRankingScrollTop: number;
   catalogScrollTop: number;
   catalogScrollLeft: number;
   selectedRole: ClassicRole;
@@ -82,6 +83,7 @@ export function mountCatalogApp(root: HTMLElement, sosFantaProfiles: SosFantaPro
     playerSearchQuery: "",
     playerSearchError: "",
     rankingScrollTop: 0,
+    purchasedRankingScrollTop: 0,
     catalogScrollTop: 0,
     catalogScrollLeft: 0,
     selectedRole: "P",
@@ -258,6 +260,8 @@ function render(
   )?.dataset.auctionView;
   const previousRanking = root.querySelector<HTMLElement>("[data-ranking-list]");
   if (previousRanking) viewState.rankingScrollTop = previousRanking.scrollTop;
+  const previousPurchasedRanking = root.querySelector<HTMLElement>("[data-purchased-ranking-list]");
+  if (previousPurchasedRanking) viewState.purchasedRankingScrollTop = previousPurchasedRanking.scrollTop;
   const previousCatalog = root.querySelector<HTMLElement>(".table-frame");
   if (previousCatalog) {
     viewState.catalogScrollTop = previousCatalog.scrollTop;
@@ -293,6 +297,8 @@ function render(
     : ""}${content}`;
   const nextRanking = root.querySelector<HTMLElement>("[data-ranking-list]");
   if (nextRanking) nextRanking.scrollTop = viewState.rankingScrollTop;
+  const nextPurchasedRanking = root.querySelector<HTMLElement>("[data-purchased-ranking-list]");
+  if (nextPurchasedRanking) nextPurchasedRanking.scrollTop = viewState.purchasedRankingScrollTop;
   const nextCatalog = root.querySelector<HTMLElement>(".table-frame");
   if (nextCatalog) {
     nextCatalog.scrollTop = viewState.catalogScrollTop;
@@ -1703,7 +1709,7 @@ function renderRanking(
     </div>
     ${selectedCategory && viewState.showPurchasedShortlist ? `
       <h3>Acquistati nella Shortlist</h3>
-      <ul class="ranking-list" aria-label="Acquistati nella Shortlist">${purchasedShortlistPlayers.map((player) =>
+      <ul class="ranking-list" data-purchased-ranking-list aria-label="Acquistati nella Shortlist">${purchasedShortlistPlayers.map((player) =>
         renderRankingPlayer(player, viewState, true),
       ).join("")}</ul>
     ` : ""}

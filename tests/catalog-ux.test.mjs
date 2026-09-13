@@ -205,6 +205,64 @@ test("il Ranking conserva posizione e selezione e il modulo Acquisto riceve il f
   await page.close();
 });
 
+test("gli acquistati nella Shortlist conservano lo scroll quando aprono la Scheda d’asta", async () => {
+  const page = await browser.newPage({ viewport: { width: 1440, height: 900 } });
+  const playerNames = Array.from({ length: 10 }, (_, index) =>
+    `DIFENSORE_${String(index + 1).padStart(2, "0")}`,
+  );
+  const csv = [
+    "name,team,role,slot,pma,pfc,expectedFantamedia,expectedTitolarita",
+    ...playerNames.map((name, index) =>
+      `${name},CLUB_${index + 1},D,${index + 1},${100 - index},${200 - index},6.2,80`
+    ),
+  ].join("\n");
+  await page.goto(server.url);
+  await page.getByLabel("Seleziona CSV").setInputFiles({
+    name: "catalogo-shortlist.csv",
+    mimeType: "text/csv",
+    buffer: Buffer.from(csv),
+  });
+  await page.getByRole("button", { name: "Importa catalogo" }).click();
+  await page.getByText("10 calciatori disponibili").waitFor();
+  await page.locator("summary").filter({ hasText: "Gestisci Shortlist" }).click();
+  await page.getByLabel("Nuova categoria").fill("Osservati");
+  await page.getByRole("button", { name: "Crea categoria" }).click();
+  for (const playerName of playerNames) {
+    await page.getByLabel(`${playerName} · Osservati`).check();
+  }
+  await page.getByRole("navigation", { name: "Navigazione primaria" })
+    .getByRole("link", { name: "Asta" })
+    .click();
+  await page.getByLabel("Posti DIF").fill("10");
+  await page.getByLabel("Nome della Squadra principale").fill("I Falchi");
+  await page.getByRole("button", { name: "Avvia asta" }).click();
+
+  const card = page.getByRole("region", { name: "Scheda d’asta" });
+  for (const playerName of playerNames) {
+    await page.getByLabel("Cerca il Calciatore chiamato").fill(playerName);
+    await page.getByRole("button", { name: "Apri Scheda d’asta" }).click();
+    await card.getByRole("button", { name: "Assegna giocatore" }).click();
+    await card.getByLabel("Squadra").selectOption("opponent-2");
+    await card.getByLabel("Prezzo finale").fill("1");
+    await card.getByRole("button", { name: "Registra Acquisto" }).click();
+  }
+
+  const ranking = page.getByRole("region", { name: "Ranking" });
+  await ranking.getByLabel("Filtra per categoria").selectOption({ label: "Osservati" });
+  await ranking.getByLabel("Mostra anche gli acquistati nella Shortlist").check();
+  const purchased = ranking.getByRole("list", { name: "Acquistati nella Shortlist" });
+  await purchased.evaluate((element) => { element.scrollTop = 200; });
+  const player = purchased.getByRole("button", { name: /DIFENSORE_09/ });
+  await player.scrollIntoViewIfNeeded();
+  const scrollBeforeSelection = await purchased.evaluate((element) => element.scrollTop);
+  await player.click();
+
+  assert.equal(await purchased.evaluate((element) => element.scrollTop), scrollBeforeSelection);
+  assert.equal(await card.getByRole("heading", { name: "DIFENSORE_09" }).isVisible(), true);
+
+  await page.close();
+});
+
 test("il command center non crea overflow orizzontale nella fascia tablet", async () => {
   const page = await openActiveAuction();
   await page.setViewportSize({ width: 800, height: 900 });
