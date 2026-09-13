@@ -112,11 +112,16 @@ test("Ranking, ordinamenti trasparenti e Scarsità restano distinti per Ruolo Cl
   const region = page.getByRole("region", { name: "Ranking" });
   const scarcity = page.getByRole("region", { name: "Scarsità per slot" });
 
-  const rankingControlSizes = await region.locator(".role-tabs button, .ranking-sort select")
-    .evaluateAll((controls) => controls.map((control) => {
-      const { width, height } = control.getBoundingClientRect();
+  const rankingControlSizes = await Promise.all([
+    ...["POR", "DIF", "CEN", "ATT"].map((name) =>
+      region.getByRole("button", { name, exact: true }),
+    ),
+    region.getByLabel("Ordina ranking"),
+    region.getByLabel("Filtra per categoria"),
+  ].map((control) => control.evaluate((element) => {
+      const { width, height } = element.getBoundingClientRect();
       return { width, height };
-    }));
+    })));
   assert.equal(rankingControlSizes.every(({ width, height }) => width >= 44 && height >= 44), true);
   await region.getByRole("button", { name: "ATT", exact: true }).click();
   assert.deepEqual(

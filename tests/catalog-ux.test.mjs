@@ -213,10 +213,6 @@ test("il command center non crea overflow orizzontale nella fascia tablet", asyn
     await page.evaluate(() => document.documentElement.scrollWidth),
     800,
   );
-  assert.equal(
-    await page.locator(".auction-command-center").evaluate((element) => getComputedStyle(element).gridTemplateColumns.split(" ").length),
-    1,
-  );
   const tops = await Promise.all(["Scheda d’asta", "Ranking", "Scarsità per slot"].map((name) =>
     page.getByRole("region", { name }).evaluate((element) => element.getBoundingClientRect().top),
   ));

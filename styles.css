@@ -1180,7 +1180,7 @@ select[aria-invalid="true"] {
 
 .scarcity-list li {
   display: grid;
-  grid-template-columns: minmax(0, 1fr) auto;
+  grid-template-columns: minmax(0, 1fr) 7rem;
   gap: 0.4rem;
   align-items: baseline;
   border-top: 1px solid var(--divider);
@@ -1190,14 +1190,16 @@ select[aria-invalid="true"] {
 }
 
 .scarcity-count {
-  display: inline-flex;
+  display: grid;
+  grid-template-columns: 3ch minmax(0, 1fr);
   gap: 0.35rem;
-  justify-content: end;
   align-items: baseline;
+  white-space: nowrap;
 }
 
 .scarcity-count strong {
   color: var(--text-primary);
+  text-align: right;
 }
 
 .player-search {
