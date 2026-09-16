@@ -1582,25 +1582,38 @@ function renderTeams(
   return `
     <section class="teams-view" aria-labelledby="teams-title">
       <h1 id="teams-title" class="visually-hidden">Squadre</h1>
-      <div class="team-card-grid">
+      <div class="team-comparison">
         ${auction.teams.map((team) => {
           const purchases = purchasesWithPlayersForTeam(state.catalog, auction, team.id);
           const remainingBudget = remainingTeamBudget(auction, team.id);
           return `
             <article
-              class="card team-roster-card${team.isMain ? " team-roster-card-main" : ""}"
+              class="team-overview${team.isMain ? " team-overview-main" : ""}"
               data-team-roster="${escapeHtml(team.id)}"
               aria-label="${team.isMain ? "Squadra principale" : "Squadra"} ${escapeHtml(team.name)}"
             >
-              <header class="team-roster-heading">
-                <h2 title="${escapeHtml(team.name)}">${escapeHtml(team.name)}</h2>
-              </header>
-              <dl class="team-roster-summary">
-                <div><dt aria-label="Budget residuo">Residuo</dt><dd aria-label="${numberFormatter.format(remainingBudget)} crediti residui">${numberFormatter.format(remainingBudget)}</dd></div>
-                <div><dt aria-label="Massimo spendibile">Max</dt><dd aria-label="${numberFormatter.format(maximumSpendable(auction, team.id))} crediti spendibili">${numberFormatter.format(maximumSpendable(auction, team.id))}</dd></div>
-                <div><dt aria-label="Posti della rosa"><span aria-hidden="true">Rosa</span></dt><dd aria-label="${purchases.length} di ${totalRosterSlots} posti occupati">${purchases.length}/${totalRosterSlots}</dd></div>
-              </dl>
-              <div class="team-role-list">
+              <details name="team-rosters" ${team.isMain ? "open" : ""}>
+                <summary class="team-comparison-row">
+                  <span class="team-comparison-identity">
+                    <strong>${escapeHtml(team.name)}</strong>
+                    ${team.isMain ? '<span>Squadra principale</span>' : ""}
+                  </span>
+                  <span class="team-comparison-metrics">
+                    <span><span>Budget residuo</span><strong>${numberFormatter.format(remainingBudget)}</strong></span>
+                    <span><span>Massimo spendibile</span><strong>${numberFormatter.format(maximumSpendable(auction, team.id))}</strong></span>
+                    <span><span>Posti occupati</span><strong>${purchases.length}/${totalRosterSlots}</strong></span>
+                  </span>
+                  <span class="team-comparison-roles">
+                    ${Object.entries(roleNames).map(([roleValue, roleName]) => {
+                      const role = roleValue as ClassicRole;
+                      const occupied = purchases.filter(({ player }) => player.role === role).length;
+                      return `<span><span>${roleName}</span><strong>${occupied}/${auction.configuration.rosterSlots[role]}</strong></span>`;
+                    }).join("")}
+                  </span>
+                  <span class="team-comparison-action"><span class="team-open-label">Apri rosa</span><span class="team-close-label">Chiudi rosa</span></span>
+                </summary>
+                <section class="team-roster-detail" aria-label="Rosa di ${escapeHtml(team.name)}">
+                ${purchases.length ? `<div class="team-role-list">
                 ${Object.entries(roleNames).map(([roleValue, roleName]) => {
                   const role = roleValue as ClassicRole;
                   const rolePurchases = purchases
@@ -1617,18 +1630,20 @@ function renderTeams(
                   const occupied = rolePurchases.length;
                   const total = auction.configuration.rosterSlots[role];
                   return `
-                    <section class="team-role" style="--team-role-slots: ${total}" aria-label="${roleName} di ${escapeHtml(team.name)}">
+                    <section class="team-role" aria-label="${roleName} di ${escapeHtml(team.name)}">
                       <header class="team-role-heading">
                         <h3>${roleName}</h3>
                         <span aria-label="${numberFormatter.format(spent)} crediti spesi">${numberFormatter.format(spent)}</span>
                         <span aria-label="${numberFormatter.format(percentage)} percento del budget">${numberFormatter.format(percentage)}%</span>
                         <span aria-label="${occupied} di ${total} posti occupati">${occupied}/${total}</span>
                       </header>
-                      <ul class="team-role-purchases" aria-label="Acquisti ${roleName} di ${escapeHtml(team.name)}">${rolePurchases.map(({ player, purchase }) => `<li><span title="${escapeHtml(player.name)}">${escapeHtml(player.name)}</span><strong aria-label="${numberFormatter.format(purchase.finalPrice)} crediti">${numberFormatter.format(purchase.finalPrice)}</strong></li>`).join("")}</ul>
+                      ${rolePurchases.length ? `<ul class="team-role-purchases" aria-label="Acquisti ${roleName} di ${escapeHtml(team.name)}">${rolePurchases.map(({ player, purchase }) => `<li><span title="${escapeHtml(player.name)}">${escapeHtml(player.name)}</span><strong aria-label="${numberFormatter.format(purchase.finalPrice)} crediti">${numberFormatter.format(purchase.finalPrice)}</strong></li>`).join("")}</ul>` : '<p class="team-empty">Nessun Acquisto</p>'}
                     </section>
                   `;
                 }).join("")}
-              </div>
+                </div>` : '<p class="team-empty">Nessun Acquisto registrato.</p>'}
+                </section>
+              </details>
             </article>
           `;
         }).join("")}

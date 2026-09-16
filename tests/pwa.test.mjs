@@ -82,6 +82,8 @@ async function assertAuctionWithPurchase(page) {
   await page.getByRole("navigation", { name: "Navigazione primaria" })
     .getByRole("link", { name: "Squadre" })
     .click();
+  await page.getByRole("article", { name: "Squadra Squadra 2", exact: true })
+    .getByText("Apri rosa", { exact: true }).click();
   const defenders = page.getByRole("region", { name: "DIF di Squadra 2" });
   const purchases = defenders.getByRole("list", { name: "Acquisti DIF di Squadra 2" });
   assert.deepEqual(await purchases.locator("li > span").allTextContents(), ["GIOCATORE_D_01"]);

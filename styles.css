@@ -501,75 +501,133 @@ button:disabled {
   overflow: hidden;
 }
 
-.teams-view {
-  display: grid;
-  gap: 1.5rem;
+.teams-view,
+.team-comparison {
+  min-width: 0;
 }
 
-.team-card-grid {
+.team-comparison {
+  border: 1px solid var(--border-subtle);
+  border-radius: var(--radius-panel);
+  background: var(--surface-panel);
+}
+
+.team-overview + .team-overview {
+  border-top: 1px solid var(--border-divider);
+}
+
+.team-overview-main {
+  border-block: 3px double var(--border-strong);
+  background: var(--surface-header);
+}
+
+.team-comparison-row {
+  display: grid;
+  grid-template-columns: minmax(0, 1.3fr) minmax(0, 2fr) minmax(0, 1.4fr) 5rem;
+  gap: 1.25rem;
+  align-items: center;
+  min-height: 4rem;
+  padding: 0.65rem 1rem;
+  cursor: pointer;
+  list-style: none;
+}
+
+.team-comparison-row::-webkit-details-marker {
+  display: none;
+}
+
+.team-comparison-row:hover {
+  background: var(--surface-row-hover);
+}
+
+.team-comparison-row:focus-visible {
+  outline-offset: -3px;
+}
+
+.team-comparison-identity,
+.team-comparison-metrics > span,
+.team-comparison-roles > span {
+  display: grid;
+  min-width: 0;
+  gap: 0.15rem;
+}
+
+.team-comparison-identity strong {
+  font-family: "Barlow Semi Condensed", "Barlow", system-ui, sans-serif;
+  font-size: 1.1rem;
+  overflow-wrap: anywhere;
+}
+
+.team-comparison-identity > span,
+.team-comparison-metrics > span > span,
+.team-comparison-roles > span > span,
+.team-comparison-action,
+.team-role-heading span {
+  color: var(--text-muted);
+  font-size: 0.75rem;
+}
+
+.team-comparison-metrics,
+.team-comparison-roles {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 0.65rem;
+  text-align: right;
+}
+
+.team-comparison-roles {
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+}
+
+.team-comparison-action {
+  text-align: right;
+  text-decoration: underline;
+  text-underline-offset: 0.2em;
+}
+
+.team-close-label,
+.team-overview details[open] .team-open-label {
+  display: none;
+}
+
+.team-overview details[open] .team-close-label {
+  display: inline;
+}
+
+.team-roster-detail {
+  padding: 0.75rem 1rem;
+  border-top: 1px solid var(--border-divider);
+  background: var(--surface-sunken);
+}
+
+.team-empty {
+  margin: 0;
+  color: var(--text-muted);
+  font-size: 0.85rem;
+}
+
+.team-role-list {
   display: grid;
   grid-template-columns: repeat(4, minmax(0, 1fr));
   gap: 1rem;
 }
 
-.team-roster-card {
-  --team-player-row-height: 1.4rem;
-  display: grid;
-  align-content: start;
-  gap: 0.8rem;
-  min-width: 0;
-  overflow: hidden;
-}
-
-.team-roster-card-main {
-  border-color: var(--accent-border);
-  box-shadow: inset 0 0.2rem 0 var(--accent-surface);
-}
-
-.team-roster-heading {
-  min-width: 0;
-}
-
-.team-roster-heading h2 {
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-
-.team-roster-summary {
-  display: grid;
-  grid-template-columns: repeat(3, minmax(0, 1fr));
-  gap: 0.65rem;
-  margin: 0;
-}
-
-.team-roster-summary div {
-  display: grid;
-  gap: 0.2rem;
-}
-
-.team-roster-summary dt,
-.team-role-heading span {
-  color: var(--text-muted);
-  font-size: 0.72rem;
-}
-
-.team-roster-summary dd {
-  margin: 0;
-  font-weight: 750;
-}
-
-.team-role-list {
-  display: grid;
-  gap: 0.65rem;
-}
-
 .team-role {
   display: grid;
-  grid-template-rows: auto auto;
+  align-content: start;
   gap: 0.4rem;
-  border-top: 1px solid var(--divider);
-  padding-top: 0.65rem;
+  min-width: 0;
+}
+
+.team-role .team-role-purchases {
+  grid-template-rows: none;
+  grid-auto-rows: auto;
+  gap: 0.25rem;
+}
+
+.team-role .team-role-purchases li span {
+  overflow-wrap: anywhere;
+  white-space: normal;
 }
 
 .team-role-heading {
@@ -1899,6 +1957,24 @@ tbody tr:hover th[scope="row"] {
 }
 
 @media (max-width: 1050px) {
+  .team-comparison-row {
+    grid-template-columns: minmax(0, 1fr) minmax(0, 2fr) 5rem;
+    gap: 0.65rem 1rem;
+  }
+
+  .team-comparison-identity {
+    grid-row: span 2;
+  }
+
+  .team-comparison-roles {
+    grid-column: 2;
+  }
+
+  .team-comparison-action {
+    grid-column: 3;
+    grid-row: 1 / 3;
+  }
+
   .active-topbar {
     position: static;
   }
@@ -1945,12 +2021,40 @@ tbody tr:hover th[scope="row"] {
   }
 
   .roster-columns,
-  .team-card-grid {
+  .team-role-list {
     grid-template-columns: repeat(2, minmax(0, 1fr));
   }
 }
 
 @media (max-width: 760px) {
+  .team-comparison-row {
+    grid-template-columns: minmax(0, 1fr) auto;
+  }
+
+  .team-comparison-identity {
+    grid-row: 1;
+  }
+
+  .team-comparison-action {
+    grid-column: 2;
+    grid-row: 1;
+  }
+
+  .team-comparison-metrics,
+  .team-comparison-roles {
+    grid-column: 1 / -1;
+    text-align: left;
+  }
+
+  .team-role-list {
+    grid-template-columns: 1fr;
+  }
+
+  .team-role + .team-role {
+    border-top: 1px solid var(--border-divider);
+    padding-top: 0.65rem;
+  }
+
   .active-topbar + * {
     margin-top: 1rem;
   }
@@ -1983,7 +2087,6 @@ tbody tr:hover th[scope="row"] {
   .active-topbar,
   .roster-columns,
   .acquired-slot-roles,
-  .team-card-grid,
   .shortlist-manager,
   .create-category,
   .player-search,
