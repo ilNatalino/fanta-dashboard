@@ -85,7 +85,7 @@ test("la navigazione primaria apre le viste operative e la Configurazione manten
   await page.close();
 });
 
-test("La mia rosa usa card di Ruolo compatte e senza distribuzione degli Slot", async () => {
+test("La mia rosa rende confrontabili Ruoli, riepiloghi, Acquisti e stati vuoti", async () => {
   const page = await openActiveAuction();
   await assignPlayer(page, "GIOCATORE_D_01", "main", 120);
   await assignPlayer(page, "GIOCATORE_D_02", "main", 50);
@@ -99,7 +99,12 @@ test("La mia rosa usa card di Ruolo compatte e senza distribuzione degli Slot", 
     ["POR", "DIF", "CEN", "ATT"],
   );
   const defenders = page.getByRole("region", { name: "Rosa DIF" });
-  assert.deepEqual(await defenders.locator(".team-role-heading span").allTextContents(), ["170", "17%", "2/8"]);
+  assert.deepEqual(await defenders.locator(".team-role-summary dt").allTextContents(), [
+    "Spesa",
+    "Percentuale del budget",
+    "Posti di ruolo",
+  ]);
+  assert.deepEqual(await defenders.locator(".team-role-summary dd").allTextContents(), ["170", "17%", "2/8"]);
   assert.deepEqual(
     await defenders.getByRole("list", { name: "Acquisti DIF" }).locator("li > span").allTextContents(),
     ["GIOCATORE_D_01", "GIOCATORE_D_02"],
@@ -109,18 +114,17 @@ test("La mia rosa usa card di Ruolo compatte e senza distribuzione degli Slot", 
     ["120", "50"],
   );
 
+  for (const role of ["POR", "CEN", "ATT"]) {
+    const emptyRole = page.getByRole("region", { name: `Rosa ${role}` });
+    assert.equal(await emptyRole.getByRole("listitem").count(), 0);
+    assert.equal(await emptyRole.getByText("Nessun Acquisto registrato.", { exact: true }).isVisible(), true);
+  }
   const goalkeepers = page.getByRole("region", { name: "Rosa POR" });
-  assert.deepEqual(await goalkeepers.locator(".team-role-heading span").allTextContents(), ["0", "0%", "0/3"]);
-  assert.equal(await goalkeepers.getByRole("listitem").count(), 0);
+  assert.deepEqual(await goalkeepers.locator(".team-role-summary dd").allTextContents(), ["0", "0%", "0/3"]);
 
   assert.equal(await page.getByText("posti liberi", { exact: false }).count(), 0);
   assert.equal(await page.getByRole("region", { name: "Distribuzione degli Slot acquisiti" }).count(), 0);
-  assert.equal(
-    await page.locator("[data-roster-role]").evaluateAll((cards) =>
-      new Set(cards.map((card) => Math.round(card.getBoundingClientRect().height))).size,
-    ),
-    1,
-  );
+  assert.ok((await goalkeepers.boundingBox()).height < (await defenders.boundingBox()).height);
 
   await page.setViewportSize({ width: 1000, height: 720 });
   assert.equal(
@@ -136,6 +140,7 @@ test("La mia rosa usa card di Ruolo compatte e senza distribuzione degli Slot", 
     ),
     1,
   );
+  assert.equal(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth), true);
   assert.equal(
     await page.locator(".active-topbar + *").evaluate((content) => getComputedStyle(content).marginTop),
     "16px",

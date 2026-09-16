@@ -234,7 +234,7 @@ Fanta Dashboard intentionally does not provide:
 - Mantra roles or formats other than Classic `P/D/C/A`;
 - multiple auction histories or more than one active auction;
 - accounts, multi-user collaboration, cloud synchronization, or a backend;
-- a mobile-specific interface;
+- mobile-only workflows (le viste responsive usano gli stessi flussi operativi);
 - bid-by-bid history or current-bid tracking;
 - automated recommendations, opponent-intention prediction, auction scoring, or optimization;
 - an in-application CSV editor;

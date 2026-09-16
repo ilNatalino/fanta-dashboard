@@ -255,6 +255,20 @@ function render(
   operationError = "",
   operationTarget: OperationTarget = "import",
 ): void {
+  const focusedCatalogControl = root.querySelector<HTMLElement>(
+    ".catalog-controls :focus, .catalog-sort-button:focus, [data-reset-catalog-controls]:focus",
+  );
+  const catalogFocusAttribute = focusedCatalogControl?.getAttributeNames().find(
+    (name) => name.startsWith("data-catalog-") || name === "data-reset-catalog-controls",
+  );
+  const catalogFocusValue = catalogFocusAttribute
+    ? focusedCatalogControl!.getAttribute(catalogFocusAttribute)
+    : null;
+  const catalogFocusSelector = catalogFocusAttribute
+    ? catalogFocusValue === ""
+      ? `[${catalogFocusAttribute}]`
+      : `[${catalogFocusAttribute}="${CSS.escape(catalogFocusValue!)}"]`
+    : null;
   const previousActiveView = root.querySelector<HTMLElement>(
     '.primary-navigation [aria-current="page"]',
   )?.dataset.auctionView;
@@ -303,6 +317,11 @@ function render(
   if (nextCatalog) {
     nextCatalog.scrollTop = viewState.catalogScrollTop;
     nextCatalog.scrollLeft = viewState.catalogScrollLeft;
+  }
+  if (catalogFocusSelector) {
+    const control = root.querySelector<HTMLElement>(`${catalogFocusSelector}:not(:disabled)`)
+      ?? root.querySelector<HTMLElement>("[data-catalog-search]");
+    control?.focus({ preventScroll: true });
   }
   if (previousActiveView !== viewState.activeView) {
     root.querySelector<HTMLElement>('.primary-navigation [aria-current="page"]')
@@ -729,6 +748,20 @@ function render(
     });
   });
 
+  root.querySelector<HTMLSelectElement>("[data-catalog-order]")?.addEventListener("change", (event) => {
+    const key = (event.currentTarget as HTMLSelectElement).value as CatalogSort;
+    viewState.catalogSort = key;
+    viewState.catalogSortDirection = catalogColumns.find((column) => column.key === key)!.firstDirection;
+    viewState.catalogScrollTop = 0;
+    render(root, application, viewState);
+  });
+
+  root.querySelector<HTMLSelectElement>("[data-catalog-direction]")?.addEventListener("change", (event) => {
+    viewState.catalogSortDirection = (event.currentTarget as HTMLSelectElement).value as SortDirection;
+    viewState.catalogScrollTop = 0;
+    render(root, application, viewState);
+  });
+
   root.querySelectorAll<HTMLButtonElement>("[data-reset-catalog-controls]").forEach((button) => {
     button.addEventListener("click", () => {
       viewState.catalogQuery = "";
@@ -868,6 +901,8 @@ function render(
         viewState.catalogScrollTop = 0;
       }
       render(root, application, viewState);
+      Array.from(root.querySelectorAll<HTMLSelectElement>("[data-correction-form] select"))
+        .find((select) => select.getClientRects().length > 0)?.focus();
     });
   });
 
@@ -1100,7 +1135,6 @@ function renderCatalogSection(
   return `
     <section class="catalog-heading">
       <div>
-        <p class="eyebrow">Preparazione personale</p>
         <h1>Catalogo calciatori</h1>
         <p class="catalog-count">${availablePlayers(state).length} calciatori disponibili</p>
       </div>
@@ -1180,7 +1214,7 @@ function renderCatalogTable(
   const columnCount = catalogColumns.length + 1 + (showAvailability ? 1 : 0);
 
   return `
-    <section class="catalog-controls card" aria-label="Ricerca e filtri del Catalogo">
+    <section class="catalog-controls" aria-label="Ricerca e filtri del Catalogo">
       <label class="catalog-search">Cerca per nome o squadra reale
         <input type="search" data-catalog-search value="${escapeHtml(viewState.catalogQuery)}" />
       </label>
@@ -1205,12 +1239,25 @@ function renderCatalogTable(
           </div>
         </div>
       ` : ""}
+      <div class="catalog-mobile-sort">
+        <label>Ordina Catalogo per
+          <select data-catalog-order>${catalogColumns.map((column) => `
+            <option value="${column.key}" ${viewState.catalogSort === column.key ? "selected" : ""}>${column.label}</option>
+          `).join("")}</select>
+        </label>
+        <label>Direzione ordinamento
+          <select data-catalog-direction>
+            <option value="ascending" ${viewState.catalogSortDirection === "ascending" ? "selected" : ""}>Crescente ↑</option>
+            <option value="descending" ${viewState.catalogSortDirection === "descending" ? "selected" : ""}>Decrescente ↓</option>
+          </select>
+        </label>
+      </div>
       <div class="catalog-control-summary">
         <p id="catalog-result-count" aria-live="polite">${players.length} ${players.length === 1 ? "calciatore" : "calciatori"} su ${state.catalog.length}</p>
         <button type="button" class="secondary-button" data-reset-catalog-controls ${hasFilters ? "" : "disabled"}>Azzera ricerca e filtri</button>
       </div>
     </section>
-    <div class="table-frame">
+    <div class="table-frame" role="region" aria-label="Tabella del Catalogo" tabindex="0">
       <table aria-describedby="catalog-result-count">
         <thead><tr>${catalogColumns.map((column) => {
           const active = viewState.catalogSort === column.key;
@@ -1227,7 +1274,7 @@ function renderCatalogTable(
         <tbody>${players.length === 0
           ? `<tr><td class="empty-catalog" colspan="${columnCount}">
               <p>Nessun calciatore corrisponde alla ricerca e ai filtri selezionati.</p>
-              <button type="button" data-reset-catalog-controls>Azzera ricerca e filtri</button>
+              <button type="button" class="secondary-button" data-reset-catalog-controls>Azzera ricerca e filtri</button>
             </td></tr>`
           : players.map((player) => {
           const availability = renderCatalogAvailability(state, player, viewState, operationError);
@@ -1241,17 +1288,24 @@ function renderCatalogTable(
       </table>
     </div>
     <ul class="catalog-mobile-list" aria-label="Catalogo calciatori mobile">
+      ${players.length === 0 ? `<li class="empty-catalog">
+        <p>Nessun calciatore corrisponde alla ricerca e ai filtri selezionati.</p>
+        <button type="button" class="secondary-button" data-reset-catalog-controls>Azzera ricerca e filtri</button>
+      </li>` : ""}
       ${players.map((player) => `
         <li>
           <details class="catalog-mobile-player" ${viewState.correctionDraft?.playerName === player.name ? "open" : ""}>
             <summary>
-              <strong>${escapeHtml(player.name)}</strong>
-              <span class="role">${roleNames[player.role]}</span>
+              <span class="catalog-mobile-identity">
+                <strong>${escapeHtml(player.name)}</strong>
+                <span>${escapeHtml(player.team)}</span>
+                <span><span class="role">${roleNames[player.role]}</span> · Slot ${player.slot}</span>
+              </span>
               <span class="catalog-mobile-price">PFC ${numberFormatter.format(player.pfc)}</span>
+              <span class="catalog-mobile-disclosure" aria-hidden="true"></span>
             </summary>
             <dl>
-              <div><dt>Squadra reale</dt><dd>${escapeHtml(player.team)}</dd></div>
-              <div><dt>Slot</dt><dd>${player.slot}</dd></div>
+              <div><dt>PFC</dt><dd>${numberFormatter.format(player.pfc)}</dd></div>
               <div><dt>PMA</dt><dd>${numberFormatter.format(player.pma)}</dd></div>
               <div><dt>Fantamedia prevista</dt><dd>${numberFormatter.format(player.expectedFantamedia)}</dd></div>
               <div><dt>Titolarità prevista</dt><dd>${numberFormatter.format(player.expectedTitolarita)}%</dd></div>
@@ -1278,7 +1332,7 @@ function renderCatalogAvailability(
   if (!purchase) return "Disponibile";
   const team = state.auction?.teams.find((candidate) => candidate.id === purchase.teamId);
   const context = mobile ? " mobile" : "";
-  return `Acquistato · ${escapeHtml(team?.name ?? "Squadra non disponibile")} · ${purchase.finalPrice} crediti
+  return `Acquistato · ${escapeHtml(team?.name ?? "Squadra non disponibile")} · <span class="catalog-mobile-status-price">${purchase.finalPrice}</span> crediti
     <button type="button" class="icon-button" data-edit-purchase="${escapeHtml(player.name)}" aria-label="Correggi Acquisto${context} ${escapeHtml(player.name)}">${renderTablerIcon("pencil")}</button>
     <button type="button" data-cancel-purchase="${escapeHtml(player.name)}" aria-label="Annulla Acquisto${context} ${escapeHtml(player.name)}">Annulla</button>
     ${viewState.correctionDraft?.playerName === player.name
@@ -1539,8 +1593,6 @@ function renderMyRoster(
   const rolePurchases = (role: ClassicRole) => mainTeamPurchases.filter(
     ({ player }) => player.role === role,
   );
-  const maxRoleSlots = Math.max(...Object.values(auction.configuration.rosterSlots));
-
   return `
     <section class="roster-view" aria-labelledby="my-roster-title">
       <h1 id="my-roster-title" class="visually-hidden">La mia rosa</h1>
@@ -1557,14 +1609,27 @@ function renderMyRoster(
           const total = auction.configuration.rosterSlots[role];
           const percentage = spent / auction.configuration.initialBudget * 100;
           return `
-            <section class="card roster-role" data-roster-role style="--team-role-slots: ${maxRoleSlots}" aria-label="Rosa ${roleName}">
-              <header class="team-role-heading">
+            <section class="card roster-role" data-roster-role aria-label="Rosa ${roleName}">
+              <header class="team-role-heading roster-role-heading">
                 <h2>${roleName}</h2>
-                <span aria-label="${numberFormatter.format(spent)} crediti spesi">${numberFormatter.format(spent)}</span>
-                <span aria-label="${numberFormatter.format(percentage)} percento del budget">${numberFormatter.format(percentage)}%</span>
-                <span aria-label="${occupied} di ${total} posti occupati">${occupied}/${total}</span>
+                <dl class="team-role-summary" aria-label="Riepilogo ${roleName}">
+                  <div>
+                    <dt>Spesa</dt>
+                    <dd aria-label="${numberFormatter.format(spent)} crediti spesi">${numberFormatter.format(spent)}</dd>
+                  </div>
+                  <div>
+                    <dt>Percentuale del budget</dt>
+                    <dd aria-label="${numberFormatter.format(percentage)} percento del budget">${numberFormatter.format(percentage)}%</dd>
+                  </div>
+                  <div>
+                    <dt>Posti di ruolo</dt>
+                    <dd aria-label="${occupied} di ${total} posti occupati">${occupied}/${total}</dd>
+                  </div>
+                </dl>
               </header>
-              <ul class="team-role-purchases" aria-label="Acquisti ${roleName}">${purchases.map(({ player, purchase }) => `<li><span title="${escapeHtml(player.name)}">${escapeHtml(player.name)}</span><strong aria-label="${numberFormatter.format(purchase.finalPrice)} crediti">${numberFormatter.format(purchase.finalPrice)}</strong></li>`).join("")}</ul>
+              ${purchases.length
+                ? `<ul class="team-role-purchases" aria-label="Acquisti ${roleName}">${purchases.map(({ player, purchase }) => `<li><span title="${escapeHtml(player.name)}">${escapeHtml(player.name)}</span><strong aria-label="${numberFormatter.format(purchase.finalPrice)} crediti">${numberFormatter.format(purchase.finalPrice)}</strong></li>`).join("")}</ul>`
+                : '<p class="team-empty">Nessun Acquisto registrato.</p>'}
             </section>
           `;
         }).join("")}
