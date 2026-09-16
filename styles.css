@@ -127,7 +127,7 @@
   --accent-border: #578d1d;
   --border-subtle: #bec9c0;
   --border-strong: #96a89a;
-  --border-input: #7c8c80;
+  --border-input: #6f7f73;
   --border-header: #c9d2cb;
   --border-divider: #d5ddd7;
   --focus-ring: #2f620b;
@@ -804,6 +804,11 @@ select {
   padding: 0.7rem 0.75rem;
   color: var(--text-primary);
   background: var(--surface-sunken);
+}
+
+input::placeholder {
+  color: var(--text-muted);
+  opacity: 1;
 }
 
 input[aria-invalid="true"],
@@ -2183,6 +2188,10 @@ tbody tr:hover th[scope="row"] {
   .team-role-list {
     grid-template-columns: repeat(2, minmax(0, 1fr));
   }
+
+  .setup-fields {
+    grid-template-columns: repeat(2, minmax(8rem, 1fr));
+  }
 }
 
 @media (max-width: 760px) {
@@ -2445,6 +2454,29 @@ tbody tr:hover th[scope="row"] {
 }
 
 @media (pointer: coarse) {
+  button,
+  input:not([type="checkbox"]):not([type="radio"]),
+  select {
+    min-height: 2.75rem;
+  }
+
+  .icon-button,
+  .link-button {
+    min-height: 2.75rem;
+  }
+
+  .icon-button {
+    width: 2.75rem;
+    min-width: 2.75rem;
+    height: 2.75rem;
+  }
+
+  .link-button {
+    display: inline-flex;
+    align-items: center;
+    padding: 0 0.25rem;
+  }
+
   .catalog-controls button,
   .catalog-controls input,
   .catalog-controls select,
