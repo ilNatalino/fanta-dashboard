@@ -93,6 +93,7 @@ test("La mia rosa rende confrontabili Ruoli, riepiloghi, Acquisti e stati vuoti"
   await page.getByRole("navigation", { name: "Navigazione primaria" })
     .getByRole("link", { name: "La mia rosa" })
     .click();
+  assert.equal(await page.getByRole("group", { name: "Riepilogo I Falchi" }).isVisible(), true);
 
   assert.deepEqual(
     await page.locator("[data-roster-role] .team-role-heading > h2").allTextContents(),
@@ -134,6 +135,14 @@ test("La mia rosa rende confrontabili Ruoli, riepiloghi, Acquisti e stati vuoti"
     2,
   );
   await page.setViewportSize({ width: 700, height: 720 });
+  assert.equal(
+    await page.locator(".roster-columns").evaluate((grid) =>
+      getComputedStyle(grid).gridTemplateColumns.split(" ").length,
+    ),
+    1,
+  );
+  assert.equal(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth), true);
+  await page.setViewportSize({ width: 390, height: 844 });
   assert.equal(
     await page.locator(".roster-columns").evaluate((grid) =>
       getComputedStyle(grid).gridTemplateColumns.split(" ").length,
