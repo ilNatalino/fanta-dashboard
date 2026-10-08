@@ -37,9 +37,9 @@ jobs:
         shell: bash
 
     steps:
-      # ------------------------------------------------------------
-      # Checkout
-      # ------------------------------------------------------------
+      # ============================================================
+      # CHECKOUT
+      # ============================================================
 
       - name: Checkout repository
         uses: actions/checkout@v5
@@ -47,9 +47,9 @@ jobs:
           fetch-depth: 0
           ref: ${{ github.event.repository.default_branch }}
 
-      # ------------------------------------------------------------
-      # Preflight
-      # ------------------------------------------------------------
+      # ============================================================
+      # PREFLIGHT
+      # ============================================================
 
       - name: Check worker dependencies
         run: |
@@ -60,22 +60,27 @@ jobs:
           codex --version
           python3 --version
 
-      # ------------------------------------------------------------
-      # Git configuration
-      # ------------------------------------------------------------
+      # ============================================================
+      # GIT CONFIG
+      # ============================================================
 
       - name: Configure Git
         run: |
           git config user.name "codex-worker"
           git config user.email "codex-worker@users.noreply.github.com"
 
-      # ------------------------------------------------------------
-      # Branch name
+      # ============================================================
+      # GENERATE BRANCH NAME
+      #
       # Example:
-      # Issue #42 "Aggiungere filtri Segnalazioni"
+      #
+      # Issue #42
+      # "Aggiungere filtri Segnalazioni"
+      #
+      # ->
       #
       # codex/42-aggiungere-filtri-segnalazioni
-      # ------------------------------------------------------------
+      # ============================================================
 
       - name: Generate branch name
         run: |
@@ -87,18 +92,12 @@ jobs:
           title = os.environ["ISSUE_TITLE"]
           issue_number = os.environ["ISSUE_NUMBER"]
 
-          # Remove accents:
-          # "Configurazione attività" -> "Configurazione attivita"
           normalized = unicodedata.normalize("NFKD", title)
           normalized = normalized.encode("ascii", "ignore").decode("ascii")
 
-          # Lowercase
           slug = normalized.lower()
 
-          # Replace special characters / spaces with "-"
           slug = re.sub(r"[^a-z0-9]+", "-", slug)
-
-          # Remove leading/trailing "-"
           slug = slug.strip("-")
 
           # Avoid excessively long branch names
@@ -109,21 +108,23 @@ jobs:
 
           branch_name = f"codex/{issue_number}-{slug}"
 
-          print(f"Branch: {branch_name}")
+          print(f"Branch name: {branch_name}")
 
           with open(os.environ["GITHUB_ENV"], "a") as env:
               env.write(f"BRANCH_NAME={branch_name}\n")
           PY
 
-      # ------------------------------------------------------------
-      # Issue status
-      # ------------------------------------------------------------
+      # ============================================================
+      # ISSUE -> RUNNING
+      # ============================================================
 
       - name: Mark issue as running
         run: |
           gh issue edit "$ISSUE_NUMBER" \
             --repo "$GITHUB_REPOSITORY" \
             --remove-label "codex:queued" \
+            --remove-label "codex:failed" \
+            --remove-label "codex:done" \
             --add-label "codex:running"
 
       - name: Comment worker started
@@ -132,9 +133,9 @@ jobs:
             --repo "$GITHUB_REPOSITORY" \
             --body "Codex worker started processing this issue."
 
-      # ------------------------------------------------------------
-      # Branch
-      # ------------------------------------------------------------
+      # ============================================================
+      # CREATE BRANCH
+      # ============================================================
 
       - name: Create working branch
         run: |
@@ -144,12 +145,12 @@ jobs:
             "$BRANCH_NAME" \
             "origin/$DEFAULT_BRANCH"
 
-          echo "Working on branch:"
+          echo "Working branch:"
           echo "$BRANCH_NAME"
 
-      # ------------------------------------------------------------
-      # Build Codex prompt
-      # ------------------------------------------------------------
+      # ============================================================
+      # BUILD CODEX PROMPT
+      # ============================================================
 
       - name: Build Codex prompt
         run: |
@@ -164,7 +165,10 @@ jobs:
 
           issue_number = issue["number"]
           issue_title = issue["title"]
-          issue_body = issue.get("body") or "No additional description provided."
+          issue_body = (
+              issue.get("body")
+              or "No additional description provided."
+          )
 
           prompt = f"""
           Implement GitHub issue #{issue_number}.
@@ -177,34 +181,75 @@ jobs:
 
           {issue_body}
 
-          # Working instructions
+          # Repository instructions
 
-          - Inspect the existing repository before making changes.
-          - Read and follow AGENTS.md instructions if present.
-          - Understand the existing architecture before modifying files.
-          - Keep the implementation focused strictly on this issue.
-          - Do not modify unrelated code.
-          - Prefer existing components, utilities and dependencies.
-          - Follow the existing coding style and project structure.
-          - Keep the solution simple and maintainable.
+          Before making changes:
+
+          - Inspect the repository.
+          - Understand the existing project structure.
+          - Read AGENTS.md if present.
+          - Follow all applicable AGENTS.md instructions.
+          - Inspect existing implementations before creating new ones.
+
+          # Implementation rules
+
+          This is an implementation task.
+
+          You must actually modify the repository when changes are required
+          to satisfy the issue.
+
+          Do not merely explain how the task could be implemented.
+
+          Keep the implementation strictly focused on the issue.
+
+          - Do not modify unrelated files.
+          - Prefer existing components and utilities.
+          - Prefer existing dependencies.
+          - Follow the existing architecture.
+          - Follow the existing coding style.
+          - Keep the implementation simple.
+          - Avoid unnecessary abstractions.
           - Do not introduce new dependencies unless clearly necessary.
-          - Run relevant tests after making changes.
-          - Run linting and type checks when available.
-          - Fix errors introduced by your changes.
+
+          # Existing implementation
+
+          Before implementing something new, check whether the requested
+          behavior already exists.
+
+          If the issue is already completely satisfied by the current
+          repository:
+
+          - do not make artificial changes
+          - do not modify files only to produce a Git diff
+          - clearly state in your final response that no repository changes
+            were required
+
+          # Validation
+
+          After implementation:
+
+          - verify the requested behavior
+          - run relevant tests when available
+          - run lint when appropriate
+          - run type checks when appropriate
+          - fix errors introduced by your changes
+
+          Before finishing, inspect the resulting working tree.
 
           # Git restrictions
 
           Do NOT:
-          - create Git branches
+
+          - create branches
           - create commits
           - push changes
           - create Pull Requests
           - modify Git configuration
 
-          Git operations are handled externally by the Codex worker.
+          Git operations are handled externally by the worker.
 
-          When the implementation is complete, leave all changes in the
-          working tree.
+          When implementation is complete, leave all repository modifications
+          in the working tree.
           """
 
           path = "/tmp/codex-task.md"
@@ -215,9 +260,11 @@ jobs:
           print(f"Codex task written to {path}")
           PY
 
-      # ------------------------------------------------------------
-      # Codex
-      # ------------------------------------------------------------
+      # ============================================================
+      # RUN CODEX
+      #
+      # Output is also saved so we can use it for diagnostics.
+      # ============================================================
 
       - name: Run Codex
         run: |
@@ -226,65 +273,127 @@ jobs:
               --ask-for-approval never \
               exec \
               --sandbox workspace-write \
-              -
+              - \
+              2>&1 | tee /tmp/codex-output.log
 
-      # ------------------------------------------------------------
-      # Inspect result
-      # ------------------------------------------------------------
+      # ============================================================
+      # INSPECT RESULT
+      # ============================================================
 
       - name: Show generated changes
         run: |
-          echo "=============================="
+          echo "================================"
           echo "Git status"
-          echo "=============================="
+          echo "================================"
 
-          git status --short
+          git status --short --untracked-files=all
 
           echo
-          echo "=============================="
+          echo "================================"
           echo "Diff statistics"
-          echo "=============================="
+          echo "================================"
 
           git diff --stat
 
           echo
-          echo "=============================="
+          echo "================================"
           echo "Changed files"
-          echo "=============================="
+          echo "================================"
 
           git diff --name-only
 
-      # ------------------------------------------------------------
-      # Commit
-      # ------------------------------------------------------------
+      # ============================================================
+      # DETECT CHANGES
+      # ============================================================
 
-      - name: Commit changes
+      - name: Detect repository changes
         run: |
           git add -A
 
+          echo "Staged changes:"
+          git diff --cached --name-status
+
           if git diff --cached --quiet; then
-            echo "Codex produced no changes."
-            exit 1
+
+            echo "Codex produced no repository changes."
+
+            echo "HAS_CHANGES=false" >> "$GITHUB_ENV"
+
+          else
+
+            echo "Codex produced repository changes."
+
+            echo "HAS_CHANGES=true" >> "$GITHUB_ENV"
+
           fi
 
+      # ============================================================
+      # NO CHANGES
+      #
+      # This is NOT considered an error.
+      # ============================================================
+
+      - name: Mark issue as already satisfied
+        if: env.HAS_CHANGES == 'false'
+        run: |
+          gh issue edit "$ISSUE_NUMBER" \
+            --repo "$GITHUB_REPOSITORY" \
+            --remove-label "codex:running" \
+            --add-label "codex:done"
+
+      - name: Comment no changes required
+        if: env.HAS_CHANGES == 'false'
+        run: |
+          {
+            echo "Codex completed the task but no repository changes were required."
+            echo
+            echo "This normally means one of the following:"
+            echo
+            echo "- the requested implementation already exists"
+            echo "- the current repository already satisfies the issue"
+            echo "- Codex determined that modifying the repository was unnecessary"
+            echo
+            echo "### Codex output"
+            echo
+
+            if [ -f /tmp/codex-output.log ]; then
+              tail -n 40 /tmp/codex-output.log | sed 's/^/> /'
+            else
+              echo "> No Codex output available."
+            fi
+          } > /tmp/no-change-comment.md
+
+          gh issue comment "$ISSUE_NUMBER" \
+            --repo "$GITHUB_REPOSITORY" \
+            --body-file /tmp/no-change-comment.md
+
+      # ============================================================
+      # COMMIT
+      # ============================================================
+
+      - name: Commit changes
+        if: env.HAS_CHANGES == 'true'
+        run: |
           git commit \
             -m "feat: implement issue #${ISSUE_NUMBER}"
 
-      # ------------------------------------------------------------
-      # Push
-      # ------------------------------------------------------------
+      # ============================================================
+      # PUSH
+      # ============================================================
 
       - name: Push branch
+        if: env.HAS_CHANGES == 'true'
         run: |
           git push \
             --set-upstream origin \
             "$BRANCH_NAME"
 
-      # ------------------------------------------------------------
-      # Pull Request
-      # ------------------------------------------------------------
+      # ============================================================
+      # CREATE PR
+      # ============================================================
 
       - name: Create Pull Request
+        if: env.HAS_CHANGES == 'true'
         run: |
           cat > /tmp/pr-body.md <<EOF
           Automated implementation for #${ISSUE_NUMBER}.
@@ -320,12 +429,12 @@ jobs:
           echo "Pull Request created:"
           echo "$PR_URL"
 
-      # ------------------------------------------------------------
-      # Success
-      # ------------------------------------------------------------
+      # ============================================================
+      # SUCCESS WITH CHANGES
+      # ============================================================
 
       - name: Mark issue ready for review
-        if: success()
+        if: env.HAS_CHANGES == 'true' && success()
         run: |
           gh issue edit "$ISSUE_NUMBER" \
             --repo "$GITHUB_REPOSITORY" \
@@ -333,7 +442,7 @@ jobs:
             --add-label "codex:review"
 
       - name: Comment successful execution
-        if: success()
+        if: env.HAS_CHANGES == 'true' && success()
         run: |
           gh issue comment "$ISSUE_NUMBER" \
             --repo "$GITHUB_REPOSITORY" \
@@ -345,9 +454,9 @@ jobs:
 
           The changes are ready for manual review."
 
-      # ------------------------------------------------------------
-      # Failure
-      # ------------------------------------------------------------
+      # ============================================================
+      # FAILURE
+      # ============================================================
 
       - name: Mark issue as failed
         if: failure()
@@ -362,9 +471,23 @@ jobs:
       - name: Comment failed execution
         if: failure()
         run: |
+          {
+            echo "Codex worker failed while processing this issue."
+            echo
+            echo "Check the GitHub Actions execution logs for complete details."
+
+            if [ -f /tmp/codex-output.log ]; then
+
+              echo
+              echo "### Last Codex output"
+              echo
+
+              tail -n 40 /tmp/codex-output.log | sed 's/^/> /'
+
+            fi
+          } > /tmp/failure-comment.md
+
           gh issue comment "$ISSUE_NUMBER" \
             --repo "$GITHUB_REPOSITORY" \
-            --body "Codex worker failed while processing this issue.
-
-          Check the GitHub Actions execution logs for details." \
+            --body-file /tmp/failure-comment.md \
             || true
