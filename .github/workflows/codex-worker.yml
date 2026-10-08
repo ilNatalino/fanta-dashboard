@@ -10,31 +10,114 @@ permissions:
   issues: write
   pull-requests: write
 
+concurrency:
+  group: codex-worker-${{ github.repository }}
+  cancel-in-progress: false
+
 jobs:
   implement:
-    if: github.event.label.name == 'codex:queued'
+    if: >
+      github.event.label.name == 'codex:queued' &&
+      github.actor == 'ilNatalino'
 
     runs-on:
       - self-hosted
       - codex-local
 
+    timeout-minutes: 60
+
     env:
-      ISSUE_NUMBER: ${{ github.event.issue.number }}
-      BRANCH_NAME: codex/issue-${{ github.event.issue.number }}
-      DEFAULT_BRANCH: ${{ github.event.repository.default_branch }}
       GH_TOKEN: ${{ github.token }}
+      ISSUE_NUMBER: ${{ github.event.issue.number }}
+      ISSUE_TITLE: ${{ github.event.issue.title }}
+      DEFAULT_BRANCH: ${{ github.event.repository.default_branch }}
+
+    defaults:
+      run:
+        shell: bash
 
     steps:
+      # ------------------------------------------------------------
+      # Checkout
+      # ------------------------------------------------------------
+
       - name: Checkout repository
         uses: actions/checkout@v5
         with:
           fetch-depth: 0
           ref: ${{ github.event.repository.default_branch }}
 
+      # ------------------------------------------------------------
+      # Preflight
+      # ------------------------------------------------------------
+
+      - name: Check worker dependencies
+        run: |
+          echo "Checking worker dependencies..."
+
+          git --version
+          gh --version
+          codex --version
+          python3 --version
+
+      # ------------------------------------------------------------
+      # Git configuration
+      # ------------------------------------------------------------
+
       - name: Configure Git
         run: |
           git config user.name "codex-worker"
           git config user.email "codex-worker@users.noreply.github.com"
+
+      # ------------------------------------------------------------
+      # Branch name
+      # Example:
+      # Issue #42 "Aggiungere filtri Segnalazioni"
+      #
+      # codex/42-aggiungere-filtri-segnalazioni
+      # ------------------------------------------------------------
+
+      - name: Generate branch name
+        run: |
+          python3 <<'PY'
+          import os
+          import re
+          import unicodedata
+
+          title = os.environ["ISSUE_TITLE"]
+          issue_number = os.environ["ISSUE_NUMBER"]
+
+          # Remove accents:
+          # "Configurazione attività" -> "Configurazione attivita"
+          normalized = unicodedata.normalize("NFKD", title)
+          normalized = normalized.encode("ascii", "ignore").decode("ascii")
+
+          # Lowercase
+          slug = normalized.lower()
+
+          # Replace special characters / spaces with "-"
+          slug = re.sub(r"[^a-z0-9]+", "-", slug)
+
+          # Remove leading/trailing "-"
+          slug = slug.strip("-")
+
+          # Avoid excessively long branch names
+          slug = slug[:60].rstrip("-")
+
+          if not slug:
+              slug = "task"
+
+          branch_name = f"codex/{issue_number}-{slug}"
+
+          print(f"Branch: {branch_name}")
+
+          with open(os.environ["GITHUB_ENV"], "a") as env:
+              env.write(f"BRANCH_NAME={branch_name}\n")
+          PY
+
+      # ------------------------------------------------------------
+      # Issue status
+      # ------------------------------------------------------------
 
       - name: Mark issue as running
         run: |
@@ -43,10 +126,30 @@ jobs:
             --remove-label "codex:queued" \
             --add-label "codex:running"
 
-      - name: Create branch
+      - name: Comment worker started
+        run: |
+          gh issue comment "$ISSUE_NUMBER" \
+            --repo "$GITHUB_REPOSITORY" \
+            --body "Codex worker started processing this issue."
+
+      # ------------------------------------------------------------
+      # Branch
+      # ------------------------------------------------------------
+
+      - name: Create working branch
         run: |
           git fetch origin "$DEFAULT_BRANCH"
-          git checkout -b "$BRANCH_NAME" "origin/$DEFAULT_BRANCH"
+
+          git checkout -B \
+            "$BRANCH_NAME" \
+            "origin/$DEFAULT_BRANCH"
+
+          echo "Working on branch:"
+          echo "$BRANCH_NAME"
+
+      # ------------------------------------------------------------
+      # Build Codex prompt
+      # ------------------------------------------------------------
 
       - name: Build Codex prompt
         run: |
@@ -59,49 +162,101 @@ jobs:
 
           issue = event["issue"]
 
+          issue_number = issue["number"]
+          issue_title = issue["title"]
+          issue_body = issue.get("body") or "No additional description provided."
+
           prompt = f"""
-          Implement GitHub issue #{issue["number"]}.
+          Implement GitHub issue #{issue_number}.
 
-          # Title
+          # Issue title
 
-          {issue["title"]}
+          {issue_title}
 
           # Requirements
 
-          {issue.get("body") or "No additional description provided."}
+          {issue_body}
 
           # Working instructions
 
           - Inspect the existing repository before making changes.
-          - Follow AGENTS.md instructions if present.
-          - Keep the implementation focused on this issue.
+          - Read and follow AGENTS.md instructions if present.
+          - Understand the existing architecture before modifying files.
+          - Keep the implementation focused strictly on this issue.
           - Do not modify unrelated code.
-          - Prefer the existing project architecture and dependencies.
+          - Prefer existing components, utilities and dependencies.
+          - Follow the existing coding style and project structure.
           - Keep the solution simple and maintainable.
-          - Run relevant tests, linting or type checks when appropriate.
-          - Do not create Git commits.
-          - Do not push anything to GitHub.
-          - Do not create a Pull Request.
+          - Do not introduce new dependencies unless clearly necessary.
+          - Run relevant tests after making changes.
+          - Run linting and type checks when available.
+          - Fix errors introduced by your changes.
 
-          Git operations are handled externally by the worker.
+          # Git restrictions
+
+          Do NOT:
+          - create Git branches
+          - create commits
+          - push changes
+          - create Pull Requests
+          - modify Git configuration
+
+          Git operations are handled externally by the Codex worker.
+
+          When the implementation is complete, leave all changes in the
+          working tree.
           """
 
-          with open("/tmp/codex-task.md", "w") as f:
+          path = "/tmp/codex-task.md"
+
+          with open(path, "w") as f:
               f.write(prompt)
+
+          print(f"Codex task written to {path}")
           PY
+
+      # ------------------------------------------------------------
+      # Codex
+      # ------------------------------------------------------------
 
       - name: Run Codex
         run: |
           cat /tmp/codex-task.md | \
-          codex --ask-for-approval never exec \
-            --sandbox workspace-write \
-            -
+            codex \
+              --ask-for-approval never \
+              exec \
+              --sandbox workspace-write \
+              -
 
-      - name: Show changes
+      # ------------------------------------------------------------
+      # Inspect result
+      # ------------------------------------------------------------
+
+      - name: Show generated changes
         run: |
-          git status
+          echo "=============================="
+          echo "Git status"
+          echo "=============================="
+
+          git status --short
+
+          echo
+          echo "=============================="
+          echo "Diff statistics"
+          echo "=============================="
+
           git diff --stat
-          git diff
+
+          echo
+          echo "=============================="
+          echo "Changed files"
+          echo "=============================="
+
+          git diff --name-only
+
+      # ------------------------------------------------------------
+      # Commit
+      # ------------------------------------------------------------
 
       - name: Commit changes
         run: |
@@ -115,24 +270,59 @@ jobs:
           git commit \
             -m "feat: implement issue #${ISSUE_NUMBER}"
 
+      # ------------------------------------------------------------
+      # Push
+      # ------------------------------------------------------------
+
       - name: Push branch
         run: |
           git push \
             --set-upstream origin \
             "$BRANCH_NAME"
 
+      # ------------------------------------------------------------
+      # Pull Request
+      # ------------------------------------------------------------
+
       - name: Create Pull Request
         run: |
-          gh pr create \
+          cat > /tmp/pr-body.md <<EOF
+          Automated implementation for #${ISSUE_NUMBER}.
+
+          ## Source
+
+          GitHub Issue: #${ISSUE_NUMBER}
+
+          ## Worker
+
+          This implementation was generated by the local Codex worker.
+
+          Branch:
+
+          \`${BRANCH_NAME}\`
+
+          ## Review
+
+          This Pull Request requires manual review and manual merge.
+
+          Closes #${ISSUE_NUMBER}
+          EOF
+
+          PR_URL=$(gh pr create \
             --repo "$GITHUB_REPOSITORY" \
             --base "$DEFAULT_BRANCH" \
             --head "$BRANCH_NAME" \
-            --title "Codex: ${{ github.event.issue.title }}" \
-            --body "Automated implementation for #${ISSUE_NUMBER}.
+            --title "Codex: $ISSUE_TITLE" \
+            --body-file /tmp/pr-body.md)
 
-          This Pull Request was generated by the local Codex worker.
+          echo "PR_URL=$PR_URL" >> "$GITHUB_ENV"
 
-          Closes #${ISSUE_NUMBER}"
+          echo "Pull Request created:"
+          echo "$PR_URL"
+
+      # ------------------------------------------------------------
+      # Success
+      # ------------------------------------------------------------
 
       - name: Mark issue ready for review
         if: success()
@@ -142,10 +332,39 @@ jobs:
             --remove-label "codex:running" \
             --add-label "codex:review"
 
+      - name: Comment successful execution
+        if: success()
+        run: |
+          gh issue comment "$ISSUE_NUMBER" \
+            --repo "$GITHUB_REPOSITORY" \
+            --body "Codex completed the implementation successfully.
+
+          Branch: \`${BRANCH_NAME}\`
+
+          Pull Request: ${PR_URL}
+
+          The changes are ready for manual review."
+
+      # ------------------------------------------------------------
+      # Failure
+      # ------------------------------------------------------------
+
       - name: Mark issue as failed
         if: failure()
         run: |
           gh issue edit "$ISSUE_NUMBER" \
             --repo "$GITHUB_REPOSITORY" \
             --remove-label "codex:running" \
-            --add-label "codex:failed"
+            --remove-label "codex:queued" \
+            --add-label "codex:failed" \
+            || true
+
+      - name: Comment failed execution
+        if: failure()
+        run: |
+          gh issue comment "$ISSUE_NUMBER" \
+            --repo "$GITHUB_REPOSITORY" \
+            --body "Codex worker failed while processing this issue.
+
+          Check the GitHub Actions execution logs for details." \
+            || true
