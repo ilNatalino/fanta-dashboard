@@ -165,7 +165,7 @@ PLAYER_01,Example FC,P,1,28,30,6.2,95
 PLAYER_02,Example FC,D,2,18,20,6.0,82
 ```
 
-## Getting started
+## Development
 
 ### Requirements
 
