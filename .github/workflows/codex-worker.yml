@@ -28,15 +28,21 @@ jobs:
 
     env:
       GH_TOKEN: ${{ github.token }}
+
       ISSUE_NUMBER: ${{ github.event.issue.number }}
       ISSUE_TITLE: ${{ github.event.issue.title }}
       DEFAULT_BRANCH: ${{ github.event.repository.default_branch }}
+
+      CODEX_MODEL_LOW: ${{ vars.CODEX_MODEL_LOW }}
+      CODEX_MODEL_MEDIUM: ${{ vars.CODEX_MODEL_MEDIUM }}
+      CODEX_MODEL_HIGH: ${{ vars.CODEX_MODEL_HIGH }}
 
     defaults:
       run:
         shell: bash
 
     steps:
+
       # ============================================================
       # CHECKOUT
       # ============================================================
@@ -93,14 +99,15 @@ jobs:
           issue_number = os.environ["ISSUE_NUMBER"]
 
           normalized = unicodedata.normalize("NFKD", title)
-          normalized = normalized.encode("ascii", "ignore").decode("ascii")
+          normalized = normalized.encode(
+              "ascii",
+              "ignore"
+          ).decode("ascii")
 
           slug = normalized.lower()
-
           slug = re.sub(r"[^a-z0-9]+", "-", slug)
           slug = slug.strip("-")
 
-          # Avoid excessively long branch names
           slug = slug[:60].rstrip("-")
 
           if not slug:
@@ -115,7 +122,7 @@ jobs:
           PY
 
       # ============================================================
-      # ISSUE -> RUNNING
+      # ISSUE STATUS -> RUNNING
       # ============================================================
 
       - name: Mark issue as running
@@ -125,6 +132,7 @@ jobs:
             --remove-label "codex:queued" \
             --remove-label "codex:failed" \
             --remove-label "codex:done" \
+            --remove-label "codex:review" \
             --add-label "codex:running"
 
       - name: Comment worker started
@@ -134,7 +142,103 @@ jobs:
             --body "Codex worker started processing this issue."
 
       # ============================================================
-      # CREATE BRANCH
+      # SELECT CODEX CONFIGURATION
+      #
+      # codex:low
+      #   -> CODEX_MODEL_LOW
+      #   -> reasoning high
+      #
+      # codex:medium
+      #   -> CODEX_MODEL_MEDIUM
+      #   -> reasoning low
+      #
+      # codex:high
+      #   -> CODEX_MODEL_HIGH
+      #   -> reasoning high
+      #
+      # No difficulty label:
+      #   -> medium
+      #
+      # Multiple difficulty labels:
+      #   -> fail
+      # ============================================================
+
+      - name: Select Codex configuration
+        run: |
+          python3 <<'PY'
+          import json
+          import os
+
+          with open(os.environ["GITHUB_EVENT_PATH"], "r") as f:
+              event = json.load(f)
+
+          issue = event["issue"]
+
+          labels = {
+              label["name"]
+              for label in issue.get("labels", [])
+          }
+
+          difficulty_labels = {
+              "codex:low": "low",
+              "codex:medium": "medium",
+              "codex:high": "high",
+          }
+
+          selected = [
+              difficulty
+              for label, difficulty in difficulty_labels.items()
+              if label in labels
+          ]
+
+          if len(selected) > 1:
+              raise RuntimeError(
+                  "Multiple Codex difficulty labels found. "
+                  "Use only one of: "
+                  "codex:low, codex:medium, codex:high."
+              )
+
+          # Default difficulty
+          difficulty = selected[0] if selected else "medium"
+
+          models = {
+              "low": os.environ.get("CODEX_MODEL_LOW", ""),
+              "medium": os.environ.get("CODEX_MODEL_MEDIUM", ""),
+              "high": os.environ.get("CODEX_MODEL_HIGH", ""),
+          }
+
+          reasoning = {
+              "low": "high",
+              "medium": "low",
+              "high": "high",
+          }
+
+          model = models[difficulty]
+          effort = reasoning[difficulty]
+
+          if not model:
+              variable = f"CODEX_MODEL_{difficulty.upper()}"
+
+              raise RuntimeError(
+                  f"GitHub variable {variable} is not configured."
+              )
+
+          print("================================")
+          print("Codex configuration")
+          print("================================")
+          print(f"Difficulty : {difficulty}")
+          print(f"Model      : {model}")
+          print(f"Reasoning  : {effort}")
+          print("================================")
+
+          with open(os.environ["GITHUB_ENV"], "a") as env:
+              env.write(f"CODEX_DIFFICULTY={difficulty}\n")
+              env.write(f"CODEX_MODEL={model}\n")
+              env.write(f"CODEX_REASONING_EFFORT={effort}\n")
+          PY
+
+      # ============================================================
+      # CREATE WORKING BRANCH
       # ============================================================
 
       - name: Create working branch
@@ -145,6 +249,7 @@ jobs:
             "$BRANCH_NAME" \
             "origin/$DEFAULT_BRANCH"
 
+          echo
           echo "Working branch:"
           echo "$BRANCH_NAME"
 
@@ -165,6 +270,7 @@ jobs:
 
           issue_number = issue["number"]
           issue_title = issue["title"]
+
           issue_body = (
               issue.get("body")
               or "No additional description provided."
@@ -195,8 +301,8 @@ jobs:
 
           This is an implementation task.
 
-          You must actually modify the repository when changes are required
-          to satisfy the issue.
+          You must actually modify the repository when changes are
+          required to satisfy the issue.
 
           Do not merely explain how the task could be implemented.
 
@@ -213,7 +319,7 @@ jobs:
 
           # Existing implementation
 
-          Before implementing something new, check whether the requested
+          Before implementing something new, verify whether the requested
           behavior already exists.
 
           If the issue is already completely satisfied by the current
@@ -221,8 +327,7 @@ jobs:
 
           - do not make artificial changes
           - do not modify files only to produce a Git diff
-          - clearly state in your final response that no repository changes
-            were required
+          - clearly state that no repository changes were required
 
           # Validation
 
@@ -248,8 +353,8 @@ jobs:
 
           Git operations are handled externally by the worker.
 
-          When implementation is complete, leave all repository modifications
-          in the working tree.
+          When implementation is complete, leave all repository
+          modifications in the working tree.
           """
 
           path = "/tmp/codex-task.md"
@@ -262,16 +367,24 @@ jobs:
 
       # ============================================================
       # RUN CODEX
-      #
-      # Output is also saved so we can use it for diagnostics.
       # ============================================================
 
       - name: Run Codex
         run: |
+          echo "================================"
+          echo "Starting Codex"
+          echo "================================"
+          echo "Difficulty: $CODEX_DIFFICULTY"
+          echo "Model:      $CODEX_MODEL"
+          echo "Reasoning:  $CODEX_REASONING_EFFORT"
+          echo "================================"
+
           cat /tmp/codex-task.md | \
             codex \
               --ask-for-approval never \
               exec \
+              --model "$CODEX_MODEL" \
+              --config "model_reasoning_effort=\"$CODEX_REASONING_EFFORT\"" \
               --sandbox workspace-write \
               - \
               2>&1 | tee /tmp/codex-output.log
@@ -286,7 +399,9 @@ jobs:
           echo "Git status"
           echo "================================"
 
-          git status --short --untracked-files=all
+          git status \
+            --short \
+            --untracked-files=all
 
           echo
           echo "================================"
@@ -314,26 +429,20 @@ jobs:
           git diff --cached --name-status
 
           if git diff --cached --quiet; then
-
+            echo
             echo "Codex produced no repository changes."
-
             echo "HAS_CHANGES=false" >> "$GITHUB_ENV"
-
           else
-
+            echo
             echo "Codex produced repository changes."
-
             echo "HAS_CHANGES=true" >> "$GITHUB_ENV"
-
           fi
 
       # ============================================================
       # NO CHANGES
-      #
-      # This is NOT considered an error.
       # ============================================================
 
-      - name: Mark issue as already satisfied
+      - name: Mark issue as done without changes
         if: env.HAS_CHANGES == 'false'
         run: |
           gh issue edit "$ISSUE_NUMBER" \
@@ -347,11 +456,17 @@ jobs:
           {
             echo "Codex completed the task but no repository changes were required."
             echo
-            echo "This normally means one of the following:"
+            echo "### Codex configuration"
+            echo
+            echo "- Difficulty: \`${CODEX_DIFFICULTY}\`"
+            echo "- Model: \`${CODEX_MODEL}\`"
+            echo "- Reasoning: \`${CODEX_REASONING_EFFORT}\`"
+            echo
+            echo "This normally means:"
             echo
             echo "- the requested implementation already exists"
-            echo "- the current repository already satisfies the issue"
-            echo "- Codex determined that modifying the repository was unnecessary"
+            echo "- the repository already satisfies the issue"
+            echo "- no modification was necessary"
             echo
             echo "### Codex output"
             echo
@@ -361,6 +476,7 @@ jobs:
             else
               echo "> No Codex output available."
             fi
+
           } > /tmp/no-change-comment.md
 
           gh issue comment "$ISSUE_NUMBER" \
@@ -389,7 +505,7 @@ jobs:
             "$BRANCH_NAME"
 
       # ============================================================
-      # CREATE PR
+      # CREATE PULL REQUEST
       # ============================================================
 
       - name: Create Pull Request
@@ -401,6 +517,14 @@ jobs:
           ## Source
 
           GitHub Issue: #${ISSUE_NUMBER}
+
+          ## Codex configuration
+
+          Difficulty: \`${CODEX_DIFFICULTY}\`
+
+          Model: \`${CODEX_MODEL}\`
+
+          Reasoning effort: \`${CODEX_REASONING_EFFORT}\`
 
           ## Worker
 
@@ -426,11 +550,12 @@ jobs:
 
           echo "PR_URL=$PR_URL" >> "$GITHUB_ENV"
 
+          echo
           echo "Pull Request created:"
           echo "$PR_URL"
 
       # ============================================================
-      # SUCCESS WITH CHANGES
+      # SUCCESS
       # ============================================================
 
       - name: Mark issue ready for review
@@ -447,6 +572,10 @@ jobs:
           gh issue comment "$ISSUE_NUMBER" \
             --repo "$GITHUB_REPOSITORY" \
             --body "Codex completed the implementation successfully.
+
+          Difficulty: \`${CODEX_DIFFICULTY}\`
+          Model: \`${CODEX_MODEL}\`
+          Reasoning: \`${CODEX_REASONING_EFFORT}\`
 
           Branch: \`${BRANCH_NAME}\`
 
@@ -476,15 +605,23 @@ jobs:
             echo
             echo "Check the GitHub Actions execution logs for complete details."
 
-            if [ -f /tmp/codex-output.log ]; then
+            if [ -n "${CODEX_MODEL:-}" ]; then
+              echo
+              echo "### Codex configuration"
+              echo
+              echo "- Difficulty: \`${CODEX_DIFFICULTY:-unknown}\`"
+              echo "- Model: \`${CODEX_MODEL:-unknown}\`"
+              echo "- Reasoning: \`${CODEX_REASONING_EFFORT:-unknown}\`"
+            fi
 
+            if [ -f /tmp/codex-output.log ]; then
               echo
               echo "### Last Codex output"
               echo
 
               tail -n 40 /tmp/codex-output.log | sed 's/^/> /'
-
             fi
+
           } > /tmp/failure-comment.md
 
           gh issue comment "$ISSUE_NUMBER" \
